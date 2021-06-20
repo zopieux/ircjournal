@@ -1,0 +1,151 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@300;400;500&display=swap')
+
+$text: lighten(black, 10)
+$muted: lighten($text, 50)
+$pad: 2ch
+$weight: 400
+$bold: 500
+$light: 300
+$line-height: 1.3
+
+body
+  font-family: 'Source Code Pro', monospace
+  font-weight: $weight
+  font-size: 14px
+  color: $text
+  margin: 0 auto
+  padding: $pad
+  max-width: 900px
+
+h1
+  margin: 0
+  padding: 0
+
+blockquote.last-topic
+  margin: 0
+  padding: $pad
+
+  & > cite
+    display: block
+    font-style: initial
+    font-weight: $light
+    padding: 0
+    margin: $pad/2 0 0
+
+.warning
+  $col: lighten(darkred, 10)
+  margin: $pad
+  padding: $pad/2 $pad
+  border: 1px solid  mix(black, $col, 20%)
+  background-color: mix(white, $col, 80%)
+
+.days
+  display: flex
+  flex-direction: row
+  gap: 1ch
+
+  .jump
+    flex: 1
+    text-align: right
+
+  .day-first::before
+    content: ' << '
+    color: $muted
+
+  .day-prev::before
+    content: ' < '
+    color: $muted
+
+  .day-today
+    flex: 1
+    text-align: center
+    font-weight: $bold
+    & > span:first-child
+      margin: 0 1ch
+
+  .day-next::after
+    content: ' > '
+    color: $muted
+
+  .day-last::after
+    content: ' >> '
+    color: $muted
+
+  .day-nope
+    color: $muted
+
+  a
+    text-decoration: none
+    font-weight: $bold
+
+.server::after
+  content: ' › '
+  color: $muted
+
+tr:target
+  & > td
+    background-color: darken(lightyellow, 10)
+
+.messages
+  $pad: $pad/2
+  border-spacing: 0
+  border-collapse: collapse
+  box-sizing: border-box
+  width: 100%
+  margin: 0
+  padding: 0
+
+  tbody.msg
+    // Non-chat.
+    &:not([data-oper=""]):not([data-oper="me"])
+      //opacity: .6
+      &, .nick
+        font-weight: $light
+
+  & > tr
+    line-height: initial
+
+  td.ts, td.nick
+    padding-right: $pad
+
+  td.ts, td.nick, td.line
+    vertical-align: baseline
+
+  td.ts
+    color: $muted
+
+    > a
+      color: inherit
+      text-decoration: none
+
+  td.nick
+    max-width: 9ch
+    white-space: nowrap
+    text-overflow: ellipsis
+    //text-overflow: '⋅'
+    overflow-x: hidden
+    text-align: right
+
+  td.line
+    overflow: hidden
+    vertical-align: baseline
+    word-break: break-all
+    word-break: break-word
+    hyphens: auto
+    width: 100%
+    line-height: $line-height
+
+    > a.link.trunc
+      &::after
+        content: '…'
+        color: $muted
+
+.nick
+  font-weight: $bold
+
+.nick-neutral
+  color: $muted
+
+@for $i from 0 through 16
+  .nick-#{$i}
+    color: adjust-hue(desaturate(#0183b7, 60), $i*(360/16)*1deg)
