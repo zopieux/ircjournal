@@ -1,0 +1,6 @@
+{
+  "include": ["static/js/*.ts"],
+  "compilerOptions": {
+    "sourceMap": true
+  }
+}

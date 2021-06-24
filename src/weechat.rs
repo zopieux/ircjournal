@@ -3,7 +3,10 @@ use std::path::Path;
 use lazy_static::lazy_static;
 use regex::{Match, Regex};
 
-use crate::{models::Datetime, IrcLine, Logger, ParseResult, models::ServerChannel};
+use crate::{
+    models::{Datetime, ServerChannel},
+    IrcLine, Logger, ParseResult,
+};
 
 lazy_static! {
     static ref FNAME: Regex = Regex::new(r"^irc\.(.+)\.(#.+|.+)\.weechatlog$").unwrap();

@@ -1,15 +1,14 @@
-use diesel::prelude::*;
-use diesel::insert_into;
+use diesel::{insert_into, prelude::*};
 use rocket::{Build, Rocket};
 use rocket_sync_db_pools::database;
 
-use crate::{
-    models::{Day, Message, NewMessage, ServerChannel, ChannelInfo},
-};
-use crate::models::Datetime;
+use crate::models::{ChannelInfo, Datetime, Day, Message, NewMessage, ServerChannel};
+use chrono::NaiveDate;
+use diesel::dsl::sql;
 use std::collections::HashSet;
 
-pub(crate) static HARD_MESSAGE_LIMIT: usize = 10_000;
+const HARD_NICK_LIMIT: usize = 1_000;
+pub(crate) const HARD_MESSAGE_LIMIT: usize = 10_000;
 
 #[database("ircjournal")]
 pub struct DbConn(PgConnection);
@@ -62,39 +61,40 @@ pub(crate) fn messages_channel_day(
         .unwrap_or_default()
 }
 
-pub(crate) fn channel_info(conn: &PgConnection, sc: ServerChannel, before: &Day) -> Option<ChannelInfo> {
+pub(crate) fn channel_info(
+    conn: &PgConnection,
+    sc: ServerChannel,
+    before: &Day,
+) -> Option<ChannelInfo> {
     use crate::schema::message::dsl::*;
-    use diesel::dsl::sql;
     let (min_ts, max_ts) = message
-        .select( (sql("min(timestamp)"), sql("max(timestamp)")))
+        .select((sql("min(timestamp)"), sql("max(timestamp)")))
         .filter(channel.eq(sc.db_encode()))
         .get_result::<(Datetime, Datetime)>(conn)
         .ok()?;
-    let topic: Option<(Datetime, String, String)> = message
-        .select( (timestamp, nick, payload))
+    let topic: Option<Message> = message
         .filter(payload.is_not_null())
         .filter(payload.ne(""))
         .filter(opcode.eq("topic"))
         .filter(channel.eq(sc.db_encode()))
         .filter(timestamp.lt(before.succ().midnight()))
         .order(timestamp.desc())
-        .first::<(Datetime, Option<String>, Option<String>)>(conn)
+        .first::<Message>(conn)
         .optional()
-        .ok()?
-        .map(|(ts, n, topic)| (ts, n.unwrap(), topic.unwrap()));
+        .ok()?;
     let nicks = message
         .select(nick)
         .distinct()
         .filter(nick.is_not_null())
         .filter(nick.ne(""))
         .filter(channel.eq(sc.db_encode()))
-        .limit(1000)
+        .limit(HARD_NICK_LIMIT as i64)
         .load::<Option<String>>(conn)
         .ok()?
-        .iter()
-        .filter_map(|n| n.clone())
+        .into_iter()
+        .filter_map(|n| n)
         .collect::<HashSet<String>>();
-    Some(ChannelInfo{
+    Some(ChannelInfo {
         sc,
         first_day: Day::new(&min_ts),
         last_day: Day::new(&max_ts),
@@ -106,4 +106,27 @@ pub(crate) fn channel_info(conn: &PgConnection, sc: ServerChannel, before: &Day)
 pub(crate) fn batch_insert_messages(conn: &PgConnection, vec: &[NewMessage]) -> Option<usize> {
     use crate::schema::message::dsl::*;
     insert_into(message).values(vec).execute(conn).ok()
+}
+
+pub(crate) fn channel_month_index(
+    conn: &PgConnection,
+    sc: &ServerChannel,
+    year: i32,
+    month: u32,
+) -> HashSet<u32> {
+    use crate::schema::message::dsl::*;
+    let from = NaiveDate::from_ymd(year, month, 1);
+    let to = NaiveDate::from_ymd(year + month as i32 / 12, 1 + month % 12, 1);
+    message
+        .select(sql("EXTRACT(DAY FROM timestamp)::smallint"))
+        .distinct()
+        .filter(channel.eq(sc.db_encode()))
+        .filter(opcode.is_null().or(opcode.eq("me")))
+        .filter(timestamp.ge(from.and_hms(0, 0, 0)))
+        .filter(timestamp.lt(to.and_hms(0, 0, 0)))
+        .load::<i16>(conn)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|x| x as u32)
+        .collect()
 }

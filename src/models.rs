@@ -1,4 +1,5 @@
 use super::schema::message;
+use chrono::Datelike;
 use std::collections::HashSet;
 
 pub type Datetime = chrono::DateTime<chrono::Utc>;
@@ -12,31 +13,37 @@ pub struct ServerChannel {
     pub channel: String,
 }
 
-impl ServerChannel {
-    pub fn new(server: &str, channel: &str) -> Self {
-        Self {
-            server: server.to_string(),
-            channel: channel.to_string(),
-        }
-    }
-
-    pub fn db_encode(&self) -> String {
-        format!("{}/{}", self.server, self.channel)
-    }
-
-    pub fn db_decode(encoded: &str) -> Option<Self> {
-        let (server, channel) = encoded.split_once('/')?;
-        Some(Self::new(server, channel))
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct ChannelInfo {
     pub(crate) sc: ServerChannel,
     pub(crate) first_day: Day,
     pub(crate) last_day: Day,
-    pub(crate) topic: Option<(Datetime, String, String)>,
+    pub(crate) topic: Option<Message>,
     pub(crate) nicks: HashSet<String>,
+}
+
+#[derive(Queryable, PartialEq, Debug)]
+pub struct Message {
+    pub id: i32,
+    pub channel: String,
+    pub nick: Option<String>,
+    pub line: Option<String>,
+    pub opcode: Option<String>,
+    pub oper_nick: Option<String>,
+    pub payload: Option<String>,
+    pub timestamp: Datetime,
+}
+
+#[derive(Insertable, Debug)]
+#[table_name = "message"]
+pub struct NewMessage {
+    pub channel: String,
+    pub nick: Option<String>,
+    pub line: Option<String>,
+    pub opcode: Option<String>,
+    pub oper_nick: Option<String>,
+    pub payload: Option<String>,
+    pub timestamp: Datetime,
 }
 
 impl Day {
@@ -59,21 +66,39 @@ impl Day {
     pub(crate) fn ymd(&self) -> String {
         self.0.format("%Y-%m-%d").to_string()
     }
+
+    pub(crate) fn day(&self) -> u32 {
+        self.0.day()
+    }
+
+    pub(crate) fn month(&self) -> String {
+        self.0.format("%B").to_string()
+    }
 }
 
-#[derive(Queryable, PartialEq, Debug)]
-pub struct Message {
-    pub id: i32,
-    pub channel: String,
-    pub nick: Option<String>,
-    pub line: Option<String>,
-    pub opcode: Option<String>,
-    pub oper_nick: Option<String>,
-    pub payload: Option<String>,
-    pub timestamp: Datetime,
+impl ServerChannel {
+    pub fn new(server: &str, channel: &str) -> Self {
+        Self {
+            server: server.to_string(),
+            channel: channel.to_string(),
+        }
+    }
+
+    pub fn db_encode(&self) -> String {
+        format!("{}/{}", self.server, self.channel)
+    }
+
+    pub fn db_decode(encoded: &str) -> Option<Self> {
+        let (server, channel) = encoded.split_once('/')?;
+        Some(Self::new(server, channel))
+    }
 }
 
 impl Message {
+    pub(crate) fn sc(&self) -> ServerChannel {
+        ServerChannel::db_decode(&*self.channel).unwrap()
+    }
+
     pub(crate) fn is_talk(&self) -> bool {
         match (&self.opcode, &self.nick) {
             (None, Some(nick)) if !nick.is_empty() => true,
@@ -89,18 +114,10 @@ impl Message {
     }
 
     pub(crate) fn id_str(&self) -> String {
-        format!("m{}", self.id)
+        self.id.to_string()
     }
-}
 
-#[derive(Insertable, Debug)]
-#[table_name = "message"]
-pub struct NewMessage {
-    pub channel: String,
-    pub nick: Option<String>,
-    pub line: Option<String>,
-    pub opcode: Option<String>,
-    pub oper_nick: Option<String>,
-    pub payload: Option<String>,
-    pub timestamp: Datetime,
+    pub(crate) fn epoch(&self) -> i64 {
+        self.timestamp.timestamp()
+    }
 }

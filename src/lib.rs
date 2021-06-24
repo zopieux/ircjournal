@@ -1,4 +1,5 @@
 #![feature(async_stream, async_closure)]
+#![feature(generators)]
 
 #[macro_use]
 extern crate diesel;
@@ -305,7 +306,7 @@ impl Watcher {
 mod test {
     use tempfile::tempdir;
 
-    use crate::{models::Datetime, seek_past_line, IrcLine, Weechat};
+    use crate::{models::Datetime, seek_past_line, weechat::Weechat, IrcLine};
 
     pub(crate) fn ts(x: &'static str) -> Datetime {
         chrono::DateTime::parse_from_rfc3339(&format!("{}+00:00", x.replace(" ", "T")))

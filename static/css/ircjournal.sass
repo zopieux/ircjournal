@@ -21,17 +21,6 @@ h1
   margin: 0
   padding: 0
 
-blockquote.last-topic
-  margin: 0
-  padding: $pad
-
-  & > cite
-    display: block
-    font-style: initial
-    font-weight: $light
-    padding: 0
-    margin: $pad/2 0 0
-
 .warning
   $col: lighten(darkred, 10)
   margin: $pad
@@ -82,8 +71,8 @@ blockquote.last-topic
   content: ' › '
   color: $muted
 
-tr:target
-  & > td
+tbody:target, tbody.msg.highlight
+  td
     background-color: darken(lightyellow, 10)
 
 .messages
@@ -95,14 +84,17 @@ tr:target
   margin: 0
   padding: 0
 
-  tbody.msg
-    // Non-chat.
-    &:not([data-oper=""]):not([data-oper="me"])
-      //opacity: .6
-      &, .nick
-        font-weight: $light
+  // Non-chat.
+  .msg:not([data-oper=""]):not([data-oper="me"])
+    &, .nick
+      font-weight: $light
 
-  & > tr
+  &.without-noise
+    // Non-chat.
+    tbody.msg:not([data-oper=""]):not([data-oper="me"])
+      display: none
+
+  tr
     line-height: initial
 
   td.ts, td.nick
@@ -145,6 +137,55 @@ tr:target
 
 .nick-neutral
   color: $muted
+
+aside
+  display: flex
+  flex-direction: row
+  padding: $pad
+  gap: $pad * 2
+  align-items: flex-start
+
+nav
+  width: 100%
+  display: flex
+  flex-direction: row
+
+  span
+    padding: 0 $pad/4
+
+  span:nth-child(2)
+    flex: 1
+    text-align: center
+
+.calendar
+  table
+    border-collapse: collapse
+
+  th, td
+    text-align: right
+    padding: 0 $pad/4
+
+  th
+    font-weight: $weight
+
+  td
+    font-weight: $light
+
+  a
+    text-decoration: none
+    font-weight: $weight
+
+blockquote.last-topic
+  margin: 0
+  padding: 0 0 $pad
+  flex: 1
+
+  & > cite
+    display: block
+    font-style: initial
+    font-weight: $light
+    padding: 0
+    margin: $pad/2 0 0
 
 @for $i from 0 through 16
   .nick-#{$i}

@@ -18,7 +18,7 @@ async fn run_backfills(rocket: &Rocket<Orbit>) {
     //     .expect("config");
     let now = Instant::now();
     let (sc, inserted) = backfill::<Weechat>(
-        Path::new("/home/alex/dev/ircjournal/irc.freenode.#test.weechatlog"),
+        Path::new("/home/alex/dev/ircjournal-go/irc.freenode.#test.weechatlog"),
         conn,
         2000,
         4,
