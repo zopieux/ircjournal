@@ -104,7 +104,7 @@ function app() {
         if (e.key == "Shift") shift_pressed = false
     })
     window.addEventListener('hashchange', () => on_hash_change())
-    document.querySelectorAll("a.tslink").forEach(
+    document.querySelectorAll("a.tslink[href^='#']").forEach(
         e => e.addEventListener("click", e => tslink_click(e, shift_pressed)));
 
     on_hash_change()

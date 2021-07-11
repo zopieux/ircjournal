@@ -16,22 +16,56 @@ body
   margin: 0 auto
   padding: $pad
   max-width: 900px
+  display: flex
+  flex-direction: row
+  gap: $pad
 
 h1
   margin: 0
   padding: 0
+  font: inherit
+
+aside
+  padding: 0
+  margin: 0
+  width: 21ch
+  overflow-x: hidden
+  word-break: break-all
+  position: sticky
+  align-self: flex-start
+  top: $pad
+
+form.search
+  width: 100%
+  display: flex
+  flex-direction: column
+
+  input
+    flex: 1
+
+  input, button
+    font: inherit
+    padding: $pad/4 $pad/4
+
+main
+  flex: 1
 
 .warning
   $col: lighten(darkred, 10)
   margin: $pad
   padding: $pad/2 $pad
-  border: 1px solid  mix(black, $col, 20%)
+  border: 1px solid mix(black, $col, 20%)
   background-color: mix(white, $col, 80%)
 
 .days
+  margin: $pad/2 0
+  padding: 0
   display: flex
   flex-direction: row
   gap: 1ch
+
+  &:first-of-type
+    margin-top: 0
 
   .jump
     flex: 1
@@ -49,6 +83,7 @@ h1
     flex: 1
     text-align: center
     font-weight: $bold
+
     & > span:first-child
       margin: 0 1ch
 
@@ -74,6 +109,11 @@ h1
 tbody:target, tbody.msg.highlight
   td
     background-color: darken(lightyellow, 10)
+
+tbody.search-date
+  td
+    font-weight: $bold
+    padding: $pad/2 0
 
 .messages
   $pad: $pad/2
@@ -138,12 +178,12 @@ tbody:target, tbody.msg.highlight
 .nick-neutral
   color: $muted
 
-aside
-  display: flex
-  flex-direction: row
-  padding: $pad
-  gap: $pad * 2
-  align-items: flex-start
+//aside
+//  display: flex
+//  flex-direction: row
+//  padding: $pad
+//  gap: $pad * 2
+//  align-items: flex-start
 
 nav
   width: 100%
@@ -158,6 +198,8 @@ nav
     text-align: center
 
 .calendar
+  margin: $pad/2 0
+
   table
     border-collapse: collapse
 
@@ -174,6 +216,14 @@ nav
   a
     text-decoration: none
     font-weight: $weight
+
+  .today
+    text-decoration: underline
+    text-decoration-style: solid
+
+  .active
+    text-decoration: underline
+    text-decoration-style: double
 
 blockquote.last-topic
   margin: 0

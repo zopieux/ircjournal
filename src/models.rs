@@ -7,11 +7,15 @@ pub type Datetime = chrono::DateTime<chrono::Utc>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Day(pub(crate) chrono::NaiveDate);
 
+pub type MessagesPerDay = (Day, Vec<Message>);
+
 #[derive(PartialEq, Clone, Debug)]
 pub struct ServerChannel {
     pub server: String,
     pub channel: String,
 }
+
+pub(crate) type Nicks = HashSet<String>;
 
 #[derive(Debug)]
 pub(crate) struct ChannelInfo {
@@ -19,7 +23,7 @@ pub(crate) struct ChannelInfo {
     pub(crate) first_day: Day,
     pub(crate) last_day: Day,
     pub(crate) topic: Option<Message>,
-    pub(crate) nicks: HashSet<String>,
+    pub(crate) nicks: Nicks,
 }
 
 #[derive(Queryable, PartialEq, Debug)]
@@ -47,6 +51,10 @@ pub struct NewMessage {
 }
 
 impl Day {
+    pub(crate) fn today() -> Self {
+        Self(chrono::Local::today().naive_local())
+    }
+
     pub(crate) fn new(ts: &Datetime) -> Self {
         Self(ts.date().naive_utc())
     }

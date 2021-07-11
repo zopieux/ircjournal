@@ -28,6 +28,8 @@ futures-util = "0.3"
 async-stream = "0.3"
 crc32fast = "1.2"
 linkify = "0.7"
+markup = "0.12.2"
+itertools = "0.10.1"
 
 [dev-dependencies]
 tempfile = "3.2"

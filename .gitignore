@@ -1,3 +1,6 @@
 .sass-cache/
-/static/css/*.css
 /target
+/static/**/*.css
+/static/**/*.css.map
+/static/**/*.js
+/static/**/*.js.map

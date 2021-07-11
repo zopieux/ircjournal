@@ -2,9 +2,15 @@ use diesel::{insert_into, prelude::*};
 use rocket::{Build, Rocket};
 use rocket_sync_db_pools::database;
 
-use crate::models::{ChannelInfo, Datetime, Day, Message, NewMessage, ServerChannel};
+use crate::models::{ChannelInfo, Datetime, Day, Message, NewMessage, Nicks, ServerChannel};
 use chrono::NaiveDate;
-use diesel::dsl::sql;
+use diesel::{
+    dsl::sql,
+    pg::Pg,
+    query_builder::{AstPass, Query, QueryFragment},
+    query_dsl::LoadQuery,
+    sql_types::{BigInt, Text},
+};
 use std::collections::HashSet;
 
 const HARD_NICK_LIMIT: usize = 1_000;
@@ -63,7 +69,7 @@ pub(crate) fn messages_channel_day(
 
 pub(crate) fn channel_info(
     conn: &PgConnection,
-    sc: ServerChannel,
+    sc: &ServerChannel,
     before: &Day,
 ) -> Option<ChannelInfo> {
     use crate::schema::message::dsl::*;
@@ -93,9 +99,9 @@ pub(crate) fn channel_info(
         .ok()?
         .into_iter()
         .filter_map(|n| n)
-        .collect::<HashSet<String>>();
+        .collect::<Nicks>();
     Some(ChannelInfo {
-        sc,
+        sc: sc.clone(),
         first_day: Day::new(&min_ts),
         last_day: Day::new(&max_ts),
         topic,
@@ -129,4 +135,96 @@ pub(crate) fn channel_month_index(
         .into_iter()
         .map(|x| x as u32)
         .collect()
+}
+
+pub(crate) fn channel_search(
+    conn: &PgConnection,
+    sc: &ServerChannel,
+    query: &str,
+    page: i64,
+) -> OnePage<Message> {
+    use crate::schema::message::dsl::*;
+    message
+        .filter(
+            sql("to_tsvector('english', nick || ' ' || line) @@ plainto_tsquery('english', ")
+                .bind::<Text, _>(query)
+                .sql(")"),
+        )
+        .filter(opcode.is_null())
+        // From whitequark's irclogger:
+        // postgres' query planner is dumb as a brick and will use any index except the btree_gin
+        // one if channel is specified as-is.
+        .filter(sql("channel || '' = ").bind::<Text, _>(sc.db_encode()))
+        .order(timestamp.desc())
+        .paginate(100, page)
+        .load_and_count_pages::<Message>(conn)
+        .unwrap()
+}
+
+pub(crate) trait Paginate: Sized {
+    fn paginate(self, per_page: i64, page: i64) -> Paginated<Self>;
+}
+
+impl<T> Paginate for T {
+    fn paginate(self, per_page: i64, page: i64) -> Paginated<Self> {
+        Paginated {
+            query: self,
+            per_page,
+            page,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, QueryId)]
+pub(crate) struct Paginated<T> {
+    query: T,
+    per_page: i64,
+    page: i64,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct OnePage<U> {
+    pub(crate) records: Vec<U>,
+    pub(crate) total: i64,
+    pub(crate) page_count: i64,
+}
+
+impl<T> Paginated<T> {
+    pub fn load_and_count_pages<U>(self, conn: &PgConnection) -> QueryResult<OnePage<U>>
+    where
+        Self: LoadQuery<PgConnection, (U, i64)>,
+    {
+        let per_page = self.per_page;
+        let results = self.load::<(U, i64)>(conn)?;
+        let total = results.get(0).map(|x| x.1).unwrap_or(0);
+        let records = results.into_iter().map(|x| x.0).collect();
+        let page_count = (total as f64 / per_page as f64).ceil() as i64;
+        Ok(OnePage {
+            records,
+            total,
+            page_count,
+        })
+    }
+}
+
+impl<T: Query> Query for Paginated<T> {
+    type SqlType = (T::SqlType, BigInt);
+}
+
+impl<T> RunQueryDsl<PgConnection> for Paginated<T> {}
+
+impl<T> QueryFragment<Pg> for Paginated<T>
+where
+    T: QueryFragment<Pg>,
+{
+    fn walk_ast(&self, mut out: AstPass<Pg>) -> QueryResult<()> {
+        out.push_sql("SELECT *, COUNT(*) OVER () FROM (");
+        self.query.walk_ast(out.reborrow())?;
+        out.push_sql(") t LIMIT ");
+        out.push_bind_param::<BigInt, _>(&self.per_page)?;
+        out.push_sql(" OFFSET ");
+        let offset = (self.page - 1) * self.per_page;
+        out.push_bind_param::<BigInt, _>(&offset)?;
+        Ok(())
+    }
 }
