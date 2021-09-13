@@ -1,18 +1,17 @@
+use std::collections::HashSet;
+
+use chrono::{Datelike, NaiveDate};
 use maud::{html, Markup, PreEscaped, DOCTYPE};
+use regex::Regex;
 use rocket::uri;
 
 use crate::{
-    models::{ChannelInfo, Datetime, Day, Message, MessagesPerDay, Nicks, ServerChannel},
-    routes,
+    model::{ChannelInfo, Day, Message, MessagesPerDay, Nicks, ServerChannel},
+    route,
 };
-use chrono::{Datelike, NaiveDate, NaiveDateTime};
-use core::iter;
-use itertools::Itertools;
-use regex::Regex;
-use std::collections::HashSet;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
-const LINK_TRUNCATE_LENGTH: usize = 64;
+const LINK_TRUNCATE_LENGTH: usize = 40;
 
 enum LinkType {
     ABSOLUTE,
@@ -24,12 +23,12 @@ fn some_or_empty(s: &Option<String>) -> String {
 }
 
 fn channel_link(sc: &ServerChannel, day: &Day, content: Markup) -> Markup {
-    html! { a href=(uri!(routes::channel(sc, day.clone()))) { (content) } }
+    html! { a href=(uri!(route::channel(sc, day.clone()))) { (content) } }
 }
 
 fn message_link(m: &Message, content: Markup) -> Markup {
     let day = Day::new(&m.timestamp);
-    html! { a href={(uri!(routes::channel(&m.sc(), day))) "#" (m.id_str())} { (content) } }
+    html! { a href={(uri!(route::channel(&m.sc(), day))) "#" (m.id_str())} { (content) } }
 }
 
 macro_rules! format_some {
@@ -42,52 +41,58 @@ macro_rules! format_some {
     };
 }
 
-fn base<A, C>(title: Option<&str>, aside: PreEscaped<A>, content: PreEscaped<C>) -> Markup
+fn base<A, C>(title: &str, aside: PreEscaped<A>, content: PreEscaped<C>) -> Markup
 where
     A: AsRef<str>,
     C: AsRef<str>,
 {
-    let version = match VERSION {
-        Some(v) => v,
-        _ => "unknown",
-    };
     html! {
         (DOCTYPE)
         head {
             meta charset="utf-8";
+            meta name="viewport" content="width=device-width, initial-scale=1";
+            link rel="icon" type="image/png" href="/static/favicon.png";
             link rel="stylesheet" href="/static/css/ircjournal.css";
             title {
-                @if let Some(t) = title { (t) " — " }
+                @if !title.is_empty() { (title) " — " }
                 "ircjournal"
             }
         }
         body {
             aside {
-                h1 { (title.unwrap_or("ircjournal")) }
+                div {
+                    h1 { (title) }
+                    h2.brand { "ircjournal" }
+                }
                 (aside)
             }
             main {
                 (content)
             }
-            script type="text/javascript" src="/static/js/ircjournal.js" {}
         }
     }
 }
 
 pub(crate) fn home(channels: &[ServerChannel]) -> Markup {
     base(
-        Some("Home"),
-        html! {},
+        "Channel list",
         html! {
-            ul {
+            ul.chanlist {
                 @for sc in channels {
                     li {
-                        a.server-channel href=(uri!(routes::channel_redirect(sc))) {
-                            span.server { (sc.server) }
-                            span.channel { (sc.channel) }
+                        a.server-channel href=(uri!(route::channel_redirect(sc))) {
+                            (sc.server) "/" (sc.channel)
                         }
                     }
                 }
+            }
+        },
+        html! {
+            p {
+                "This is "
+                a hrefe="https://github.com/zopieux/ircjournal" rel="nofollow" { "ircjournal" }
+                " v" (VERSION.unwrap_or("?")) ", brought to you by "
+                a href="https://github.com/zopieux" { "zopieux@" } "."
             }
         },
     )
@@ -101,50 +106,72 @@ pub(crate) fn channel(
     truncated: bool,
 ) -> Markup {
     let sc = &info.sc;
-    let cal = render_calendar(day, &info.sc, active_days);
+    let cal = render_calendar(day, &info, active_days);
 
-    let date_sel = |from, to, jump| {
-        let link_date = |day: &Day, target| channel_link(sc, day, html! { (day.ymd()) });
+    let date_sel = |from, to, jump, jump_tip| {
+        let _link_date = |day: &Day| channel_link(sc, day, html! { (day.ymd()) });
+        // let short_link_date = |fmt: &'static str, day: &Day| channel_link(sc, day, html! { (format!(fmt, day.day())) });
         html! {
             p.days {
                 @if info.first_day != *day {
-                    span."day-first" { (link_date(&info.first_day, "")) }
-                    @if info.first_day != day.pred() { span."day-prev" { (link_date(&day.pred(), to)) } }
+                    // span."day-first" { (link_date(&info.first_day)) }
+                    // @if info.first_day != day.pred() { span."day-prev" { (short_link_date(&day.pred())) } }
+                    @let pred = day.pred();
+                    span."day-prev" { (channel_link(sc, &pred, html! { "< " (pred.day()) })) }
                 } @else { span."day-nope" { "logs start here" } }
-                span."day-today" {
+                span."day-today".current {
                     span { (day.ymd()) }
-                    a.jump #(from) href={"#" (to)} { (jump) }
+                    a.jump #(from) href={"#" (to)} title=(jump_tip) { (jump) }
                 }
                 @if info.last_day != *day {
-                    @if info.last_day != day.succ() { span."day-next" { (link_date(&day.succ(), to)) } }
-                    span."day-last" { (link_date(&info.last_day, "")) }
+                     @let next = day.succ();
+                    span."day-next" { (channel_link(sc, &next, html! { (next.day()) " >" })) }
+                    // @if info.last_day != day.succ() { span."day-next" { (short_link_date(&day.succ())) } }
+                    // span."day-last" { (link_date(&info.last_day)) }
                 } @else { span."day-nope" { "logs ends here" } }
             }
         }
     };
     base(
-        Some(&sc.db_encode()),
+        &sc.db_encode(),
         html! {
+            (home_link())
             (cal)
-            hr;
             (search_form(sc, ""))
+            label for="show-join-part" title="If checked, join, part, quit and nick messages are shown." {
+                input#show-join-part name="show-join-part" type="checkbox" checked;
+                "Show join / leave"
+            }
+            div.check-group {
+                label for="live" title="Show new messages, as they are logged live." {
+                    input#live name="live" type="checkbox" checked;
+                    "Live update"
+                }
+                label for="auto-scroll" title="Automatically scroll the new messages remain visible." {
+                    input#auto-scroll name="auto-scroll" type="checkbox" checked;
+                    "Auto-scroll"
+                }
+            }
+            (clear_selection_button())
         },
         html! {
-            (date_sel("", "bottom", "\u{22ce}"))
+            (date_sel("", "bottom", "\u{22ce}", "Jump to the bottom"))
             @if let Some(topic) = info.topic.as_ref() {
                 blockquote.last-topic {
                     (some_or_empty(&topic.payload))
                     cite { "Set by " (format_nick(topic.nick.as_ref().unwrap())) " on " (message_link(topic, html!{ (topic.timestamp.format("%Y-%m-%d at %H:%M")) })) }
                 }
             }
-            table.messages {
+            table.messages data-stream=(uri!(route::channel_stream(sc))) {
                 @for msg in messages { (message(msg, sc, &info.nicks, LinkType::RELATIVE)) }
             }
             @if messages.is_empty() {
                 p.empty { "No messages for " (day.ymd()) "." }
             }
             @if truncated { div.warning { "Only displaying the first " (messages.len()) " lines to prevent browser slowness." } }
-            (date_sel("bottom", "", "\u{22cf}"))
+            (date_sel("bottom", "", "\u{22cf}", "Jump to the top"))
+            div#bottom {}
+            script type="text/javascript" src="/static/js/ircjournal.js" {}
         },
     )
 }
@@ -164,24 +191,28 @@ pub(crate) fn search(
                 @if p as u64 == page {
                     (p)
                 } @else {
-                    a href=(uri!(routes::search(sc, query, Some(p as u64)))) { (p) }
+                    a href=(uri!(route::search(sc, query, Some(p as u64)))) { (p) }
                 }
             }
         })
         .intersperse(html! { " " })
         .collect();
+    let pages = html! { @for p in pages { (p) } };
     base(
-        Some(&sc.db_encode()),
-        search_form(sc, query),
+        &sc.db_encode(),
+        html! {
+            (home_link())
+            a href="#" onclick="window.history.back(); return false" { "Back" }
+            (search_form(sc, query))
+        },
         html! {
             div {
                 @if result_count == 0 {
                     "No message found."
                 } @else {
-                    "Found " (result_count) " results."
+                    "Found " (result_count) " results. "
                     @if page_count > 1 {
-                        " Pages: "
-                        @for p in pages { (p) }
+                        "Pages: " (pages)
                     }
                 }
             }
@@ -191,14 +222,65 @@ pub(crate) fn search(
                     @for msg in &per_day.1 { (message(msg, sc, &info.nicks, LinkType::ABSOLUTE)) }
                 }
             }
+            div {
+                @if page_count > 1 {
+                    "Pages: " (pages)
+                }
+            }
         },
     )
 }
 
+pub(crate) fn formatted_message(m: &Message) -> String {
+    message(
+        m,
+        &ServerChannel::db_decode(&m.channel).unwrap(),
+        &HashSet::new(),
+        LinkType::RELATIVE,
+    )
+    .into_string()
+}
+
+fn home_link() -> Markup {
+    html! { a href=(uri!(route::home)) { "Home" } }
+}
+
+fn clear_selection_button() -> Markup {
+    html! { button#clear-selection disabled type="button" title="Un-select all selected messages." { "Clear selection" } }
+}
+
+fn highlight(line: &str) -> Markup {
+    if !line.contains('\u{e000}') {
+        // Early exit.
+        return html! { (clean(line)) };
+    }
+    let mut it = line.split('\u{e000}');
+    let first = it
+        .by_ref()
+        .take(1)
+        .collect::<Vec<_>>()
+        .first()
+        .unwrap()
+        .to_owned();
+    let mut out = vec![html! { (first) }];
+    while let Some(full) = it.by_ref().next() {
+        if let Some((hl, tail)) = full.split_once('\u{e001}') {
+            out.push(html! { b { (hl) } (clean(tail)) });
+        } else {
+            out.push(html! { b { (clean(full)) } });
+        }
+    }
+    html! { @for s in out { (s) } }
+}
+
+fn clean(line: &str) -> String {
+    line.replace('\u{e000}', "").replace('\u{e001}', "")
+}
+
 fn search_form(sc: &ServerChannel, query: &str) -> Markup {
     html! {
-        form.search action=(uri!(routes::search(sc, "", None as Option<u64>))) method="get" {
-            input name="query" value=(query) placeholder="Search…";
+        form.search action=(uri!(route::search(sc, "", None as Option<u64>))) method="get" {
+            input name="query" value=(query) placeholder="Search this channel";
             button type="submit" { "Search" }
         }
     }
@@ -208,7 +290,7 @@ fn format_nick(nick: &str) -> Markup {
     let mut hasher = crc32fast::Hasher::new();
     hasher.update(nick.as_ref());
     let color = hasher.finalize() % 16;
-    html! { span.nick.{ "nick-" (color) } { (nick) } }
+    html! { span.nick.{ "nick-" (color) } { (highlight(nick)) } }
 }
 
 fn format_hl_nick(content: &str, nicks: &Nicks) -> Markup {
@@ -220,11 +302,11 @@ fn format_hl_nick(content: &str, nicks: &Nicks) -> Markup {
             let cap = NICK.captures(content).unwrap().get(1).unwrap();
             let nick = cap.as_str().to_string();
             if nicks.contains(&nick) {
-                return html! { (format_nick(&nick)) (content[cap.end()..]) };
+                return html! { (format_nick(&nick)) (highlight(&content[cap.end()..])) };
             }
         }
     }
-    html! { (content) }
+    highlight(content)
 }
 
 fn format_content(content: &Option<String>, nicks: &Nicks) -> Markup {
@@ -241,9 +323,13 @@ fn format_content(content: &Option<String>, nicks: &Nicks) -> Markup {
             let s = span.as_str();
             match span.kind() {
                 Some(LinkKind::Url) => {
-                    let truncated = s.len() > LINK_TRUNCATE_LENGTH;
-                    let st = if truncated { s.chars().take(LINK_TRUNCATE_LENGTH).collect::<String>() } else { s.to_string() };
-                    html! { a.link.trunc[truncated] ref="noreferrer nofollow external" href=(s) title=(s) { (st) } }
+                    let short = match s.split_once("://") {
+                        Some((_, url)) => url,
+                        None => s,
+                    };
+                    let truncated = short.len() > LINK_TRUNCATE_LENGTH;
+                    let short = if truncated { short.chars().take(LINK_TRUNCATE_LENGTH).collect::<String>() } else { short.to_string() };
+                    html! { a.link.trunc[truncated] ref="noreferrer nofollow external" href=(clean(s)) title=(clean(s)) { (highlight(&short)) } }
                 }
                 _ => format_hl_nick(s, nicks),
             }
@@ -270,7 +356,7 @@ fn format_message(m: &Message, nicks: &Nicks) -> Markup {
 
 fn message(m: &Message, sc: &ServerChannel, nicks: &Nicks, link_type: LinkType) -> Markup {
     let rel = match link_type {
-        LinkType::ABSOLUTE => uri!(routes::channel(sc, Day::new(&m.timestamp))).to_string(),
+        LinkType::ABSOLUTE => uri!(route::channel(sc, Day::new(&m.timestamp))).to_string(),
         _ => "".to_owned(),
     };
     html! {
@@ -288,15 +374,28 @@ fn message(m: &Message, sc: &ServerChannel, nicks: &Nicks, link_type: LinkType) 
     }
 }
 
-fn render_calendar(day: &Day, sc: &ServerChannel, active_days: &HashSet<u32>) -> Markup {
+fn render_calendar(day: &Day, info: &ChannelInfo, active_days: &HashSet<u32>) -> Markup {
+    let sc = &info.sc;
     let month = &calendar(day, active_days);
     let today = &Day::today();
+    // let if_not_same_month = |d: &Day, text, title| html! {
+    //     span {
+    //         @if d.ym() == day.ym() { (text) }
+    //         @else {
+    //             a href=(uri!(route::channel(sc, d.clone()))) title=(title) { (text) }
+    //         }
+    //     }
+    // };
     html! {
         section.calendar {
             nav {
-                span { a href=(uri!(routes::channel(sc, month.prev.clone()))) { "<" } }
-                span { (day.month()) }
-                span { a href=(uri!(routes::channel(sc, month.succ.clone()))) { ">" } }
+                // (if_not_same_month(&info.first_day, "\u{291a}", "Jump to first available logs"))
+                span { a href=(uri!(route::channel(sc, info.first_day.clone()))) title="Jump to first available logs" { "\u{291a}" } }
+                span { a href=(uri!(route::channel(sc, month.prev.clone()))) title="Previous month" { "«" } }
+                span.current { (day.month()) }
+                span { a href=(uri!(route::channel(sc, month.succ.clone()))) title="Next month" { "»" } }
+                span { a href=(uri!(route::channel(sc, info.last_day.clone()))) title="Jump to last available logs" { "\u{2919}" } }
+                // (if_not_same_month(&info.last_day, "\u{2919}", "Jump to last available logs"))
             }
             table {
                 thead {
@@ -311,7 +410,7 @@ fn render_calendar(day: &Day, sc: &ServerChannel, active_days: &HashSet<u32>) ->
                                 td {
                                     @if let Some((d, linked)) = opt.as_ref() {
                                         @let fmted = format!("{:\u{00A0}>2}", d.day());
-                                        @if *linked { a href=(uri!(routes::channel(sc, d.clone()))) .active[d == day].today[d == today] { (fmted) } }
+                                        @if *linked { a href=(uri!(route::channel(sc, d.clone()))) .active[d == day].today[d == today] { (fmted) } }
                                         @else { span.active[d == day].today[d == today] { (fmted) } }
                                     } @else { span {} }
                                 }
@@ -333,8 +432,6 @@ struct OneMonth {
 }
 
 fn calendar(day: &Day, active_days: &HashSet<u32>) -> OneMonth {
-    use chrono::{Datelike, NaiveDate};
-
     // Start of week.
     let sow = NaiveDate::from_ymd(day.0.year(), day.0.month(), 1);
 
@@ -366,12 +463,12 @@ fn calendar(day: &Day, active_days: &HashSet<u32>) -> OneMonth {
     let offset_monday = sow.weekday().num_days_from_monday() as usize;
 
     let mut days = (1..=num_days).into_iter();
-    let first_week: OneWeek = iter::repeat(None)
+    let first_week: OneWeek = core::iter::repeat(None)
         .take(offset_monday)
         .chain((1..=(7 - offset_monday)).map(|_| gen(days.next().unwrap() as u32)))
         .collect();
     let days = days.collect::<Vec<i64>>();
-    let mut weeks: Vec<OneWeek> = iter::once(first_week)
+    let mut weeks: Vec<OneWeek> = core::iter::once(first_week)
         .chain(
             days.chunks(7)
                 .map(|chunk| chunk.iter().map(|d| gen(*d as u32)).collect()),
@@ -387,8 +484,50 @@ fn calendar(day: &Day, active_days: &HashSet<u32>) -> OneMonth {
 }
 
 #[test]
-fn test_lol() {
+fn test_calendar() {
     let day = &Day(chrono::NaiveDate::from_ymd(2021, 6, 22));
     let present: HashSet<u32> = vec![1, 3, 9, 24].into_iter().collect();
     calendar(day, &present);
+}
+
+#[test]
+fn test_hl() {
+    assert_eq!(highlight("").into_string(), "");
+    assert_eq!(highlight("world").into_string(), "world");
+    assert_eq!(
+        highlight("\u{e000}world\u{e001}").into_string(),
+        "<b>world</b>"
+    );
+    assert_eq!(
+        highlight("\u{e000}world\u{e001}!").into_string(),
+        "<b>world</b>!"
+    );
+    assert_eq!(
+        highlight("hello \u{e000}world\u{e001}").into_string(),
+        "hello <b>world</b>"
+    );
+    assert_eq!(
+        highlight("hello \u{e000}world\u{e001}!").into_string(),
+        "hello <b>world</b>!"
+    );
+    assert_eq!(
+        highlight("\u{e000}hello\u{e001}\u{e000}world\u{e001}").into_string(),
+        "<b>hello</b><b>world</b>"
+    );
+    assert_eq!(
+        highlight("a\u{e000}hello\u{e001}b\u{e000}world\u{e001}c").into_string(),
+        "a<b>hello</b>b<b>world</b>c"
+    );
+    assert_eq!(
+        highlight("\u{e000}world\u{e000}garbage").into_string(),
+        "<b>world</b><b>garbage</b>"
+    );
+    assert_eq!(
+        highlight("\u{e000}world garbage").into_string(),
+        "<b>world garbage</b>"
+    );
+    assert_eq!(
+        highlight("\u{e000}hello\u{e001}\u{e001}world").into_string(),
+        "<b>hello</b>world"
+    );
 }

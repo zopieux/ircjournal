@@ -1,27 +1,29 @@
-use diesel::{insert_into, prelude::*};
-use rocket::{Build, Rocket};
-use rocket_sync_db_pools::database;
+use std::collections::HashSet;
 
-use crate::models::{ChannelInfo, Datetime, Day, Message, NewMessage, Nicks, ServerChannel};
 use chrono::NaiveDate;
 use diesel::{
     dsl::sql,
+    insert_into,
     pg::Pg,
+    prelude::*,
     query_builder::{AstPass, Query, QueryFragment},
     query_dsl::LoadQuery,
     sql_types::{BigInt, Text},
 };
-use std::collections::HashSet;
+use rocket::{Build, Rocket};
+use rocket_sync_db_pools::database;
+
+use crate::model::{ChannelInfo, Datetime, Day, Message, NewMessage, Nicks, ServerChannel};
 
 const HARD_NICK_LIMIT: usize = 1_000;
 pub(crate) const HARD_MESSAGE_LIMIT: usize = 10_000;
 
 #[database("ircjournal")]
-pub struct DbConn(PgConnection);
+pub struct Database(PgConnection);
 
 pub async fn run_migrations(rocket: Rocket<Build>) -> Rocket<Build> {
     embed_migrations!("migrations");
-    let conn = DbConn::get_one(&rocket)
+    let conn = Database::get_one(&rocket)
         .await
         .expect("database connection for diesel migrations");
     conn.run(|c| embedded_migrations::run(c).expect("diesel migrations"))
@@ -42,12 +44,22 @@ pub(crate) fn channels(conn: &PgConnection) -> Vec<ServerChannel> {
     use crate::schema::message::dsl::*;
     message
         .select(channel)
+        .order(channel.asc())
         .distinct()
         .load::<String>(conn)
         .unwrap_or_default()
         .iter()
         .filter_map(|s| ServerChannel::db_decode(s))
         .collect()
+}
+
+pub(crate) fn channel_exists(conn: &PgConnection, sc: &ServerChannel) -> bool {
+    use crate::schema::message::dsl::*;
+    diesel::select(diesel::dsl::exists(
+        message.filter(channel.eq(sc.db_encode())),
+    ))
+    .get_result(conn)
+    .unwrap_or(false)
 }
 
 pub(crate) fn messages_channel_day(
@@ -114,6 +126,14 @@ pub(crate) fn batch_insert_messages(conn: &PgConnection, vec: &[NewMessage]) -> 
     insert_into(message).values(vec).execute(conn).ok()
 }
 
+pub fn insert_message(conn: &PgConnection, new_message: &NewMessage) -> Option<Message> {
+    use crate::schema::message::dsl::*;
+    insert_into(message)
+        .values(new_message)
+        .get_result(conn)
+        .ok()
+}
+
 pub(crate) fn channel_month_index(
     conn: &PgConnection,
     sc: &ServerChannel,
@@ -144,18 +164,44 @@ pub(crate) fn channel_search(
     page: i64,
 ) -> OnePage<Message> {
     use crate::schema::message::dsl::*;
-    message
-        .filter(
-            sql("to_tsvector('english', nick || ' ' || line) @@ plainto_tsquery('english', ")
-                .bind::<Text, _>(query)
-                .sql(")"),
+    use regex::Regex;
+    lazy_static! {
+        static ref NICK: Regex = Regex::new(r#"\b(nick:[A-Za-z_0-9|.`\*-]+)"#).unwrap();
+    }
+    let headline = sql("ts_headline('english', line, plainto_tsquery('english', ")
+        .bind::<Text, _>(query)
+        .sql("), 'StartSel = \u{e000}, StopSel = \u{e001}') AS line");
+    let (query, nick_filter) = if let Some(mat) = NICK.find(query) {
+        let mut query = query.to_owned();
+        query.replace_range(mat.range(), "");
+        (
+            query.trim().to_owned(),
+            Some(mat.as_str()[5..].replace('*', "%")),
         )
+    } else {
+        (query.to_owned(), None)
+    };
+    let mut q = message
+        .select((
+            id, channel, nick, headline, opcode, oper_nick, payload, timestamp,
+        ))
         .filter(opcode.is_null())
         // From whitequark's irclogger:
         // postgres' query planner is dumb as a brick and will use any index except the btree_gin
         // one if channel is specified as-is.
         .filter(sql("channel || '' = ").bind::<Text, _>(sc.db_encode()))
-        .order(timestamp.desc())
+        .into_boxed();
+    if let Some(n) = nick_filter {
+        q = q.filter(nick.like(n))
+    }
+    if !query.is_empty() {
+        q = q.filter(
+            sql("to_tsvector('english', nick || ' ' || line) @@ plainto_tsquery('english', ")
+                .bind::<Text, _>(query)
+                .sql(")"),
+        );
+    }
+    q.order(timestamp.desc())
         .paginate(100, page)
         .load_and_count_pages::<Message>(conn)
         .unwrap()

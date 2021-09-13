@@ -1,23 +1,30 @@
 use maud::Markup;
-use rocket::{response::Redirect, uri, Route};
+use rocket::{response::Redirect, uri, Route, State};
 
 use crate::{
-    db::{self, DbConn, OnePage},
-    models::{ChannelInfo, Day, Message, MessagesPerDay, ServerChannel},
-    views,
+    db::{self, Database, OnePage},
+    model::{ChannelInfo, Day, Message, MessagesPerDay, ServerChannel},
+    view, MessageEvent,
 };
 use chrono::Datelike;
 use itertools::Itertools;
+use rocket::{
+    http::Status,
+    response::stream::{Event, EventStream},
+};
+use tokio::{
+    select,
+    sync::broadcast::{error::RecvError, Sender},
+};
 
 #[get("/")]
-async fn home(db: DbConn) -> Option<Markup> {
+async fn home(db: Database) -> Option<Markup> {
     let channels = db.run(|c| db::channels(&c)).await;
-    println!("{:?}", channels);
-    Some(views::home(&channels))
+    Some(view::home(&channels))
 }
 
 #[get("/<sc>")]
-async fn channel_redirect(db: DbConn, sc: ServerChannel) -> Redirect {
+async fn channel_redirect(db: Database, sc: ServerChannel) -> Redirect {
     let sc2 = sc.clone();
     Redirect::temporary(
         if let Some(last) = db.run(move |c| db::last_message(&c, &sc2)).await {
@@ -29,8 +36,35 @@ async fn channel_redirect(db: DbConn, sc: ServerChannel) -> Redirect {
     )
 }
 
+#[get("/<sc>/stream")]
+async fn channel_stream(
+    sc: ServerChannel,
+    db: Database,
+    queue: &State<Sender<MessageEvent>>,
+    mut end: rocket::Shutdown,
+) -> Option<EventStream![]> {
+    let sc_ = sc.clone();
+    if !db.run(move |c| db::channel_exists(&c, &sc_)).await {
+        return None;
+    }
+    let mut rx = queue.subscribe();
+    Some(EventStream! {
+        loop {
+            let message_html = select! {
+                msg = rx.recv() => match msg {
+                    Ok((for_sc, message_html)) if for_sc == sc => message_html,
+                    Err(RecvError::Closed) => break,
+                    _ => continue,
+                },
+                _ = &mut end => break,
+            };
+            yield Event::data(message_html);
+        }
+    })
+}
+
 #[get("/<sc>/<day>")]
-async fn channel(db: DbConn, sc: ServerChannel, day: Day) -> Option<Markup> {
+async fn channel(db: Database, sc: ServerChannel, day: Day) -> Option<Markup> {
     let (messages, info, active_days) = {
         let sc = sc.clone();
         let day = day.clone();
@@ -44,7 +78,7 @@ async fn channel(db: DbConn, sc: ServerChannel, day: Day) -> Option<Markup> {
         .await
     };
     let truncated = messages.len() == db::HARD_MESSAGE_LIMIT;
-    Some(views::channel(
+    Some(view::channel(
         &info?,
         &day,
         &messages,
@@ -54,7 +88,7 @@ async fn channel(db: DbConn, sc: ServerChannel, day: Day) -> Option<Markup> {
 }
 
 #[get("/<sc>/search?<query>&<page>")]
-async fn search(db: DbConn, sc: ServerChannel, query: &str, page: Option<u64>) -> Option<Markup> {
+async fn search(db: Database, sc: ServerChannel, query: &str, page: Option<u64>) -> Option<Markup> {
     let page = page.unwrap_or(1);
     let (result_page, info): (OnePage<Message>, Option<ChannelInfo>) = {
         let query = query.to_string();
@@ -74,7 +108,7 @@ async fn search(db: DbConn, sc: ServerChannel, query: &str, page: Option<u64>) -
         .into_iter()
         .map(|(day, group)| (Day(day), group.collect()))
         .collect();
-    Some(views::search(
+    Some(view::search(
         &info?,
         query,
         &messages,
@@ -84,6 +118,18 @@ async fn search(db: DbConn, sc: ServerChannel, query: &str, page: Option<u64>) -
     ))
 }
 
+#[get("/favicon")]
+fn favicon() -> Status {
+    Status::NotFound
+}
+
 pub fn routes() -> Vec<Route> {
-    routes![home, channel_redirect, channel, search,]
+    routes![
+        favicon,
+        home,
+        channel_redirect,
+        channel,
+        search,
+        channel_stream
+    ]
 }

@@ -5,7 +5,7 @@ use rocket::{
     request::FromParam,
 };
 
-use crate::models::{Day, ServerChannel};
+use crate::model::{Day, ServerChannel};
 
 impl UriDisplay<Path> for Day {
     fn fmt(&self, f: &mut Formatter<'_, Path>) -> fmt::Result {

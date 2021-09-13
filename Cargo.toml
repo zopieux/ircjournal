@@ -5,31 +5,46 @@ authors = ["Alexandre Macabies <web+oss@zopieux.com>"]
 edition = "2018"
 
 [dependencies]
+# HTTP server.
+# TODO(debt): update to stable release (0.5).
 rocket = { version = "0.5.0-rc.1", features = ["json"] }
-#rocket = { git = "https://github.com/SergioBenitez/Rocket", rev = "c028d63e5ba275927424397fe9d67cfebdc138ec", features = ["json"] }
+# Database pool.
+# TODO(debt): switch to rocket_db_pools (async), but this kills diesel, which is sync.
 rocket_sync_db_pools = { version = "0.1.0-rc.1", features = ["diesel_postgres_pool"] }
-#rocket_sync_db_pools = { git = "https://github.com/SergioBenitez/Rocket", rev = "c028d63e5ba275927424397fe9d67cfebdc138ec", features = ["diesel_postgres_pool"] }
+# SQL ORM.
 diesel = { version = "1.4", features = ["postgres", "chrono", "r2d2"] }
 diesel_migrations = "1.4"
-#maud = { version = "*", features = ["rocket"] }
+# Programmatic HTML templates.
+# TODO(debt): blocked on new rocket release (0.5) and follow-up maud release.
 maud = { git = "https://github.com/Zopieux/maud", branch = "support-rocket-0.5.0-rc.1", features = ["rocket"] }
-figment = "0.10.5"
-#dotenv = "0.15.0"
+# Configuration.
+figment = { version = "0.10", features = ["env", "yaml"] }
+# Date & time utils.
 chrono = "0.4"
+# Deserialization, used by figment.
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+# Regexp, for parsing a bunch of things.
 regex = "1"
+# Linux inotify API to watch for new logs.
 inotify = "0.9"
-tokio = { version = "1.6", features = ["macros", "rt-multi-thread", "time", "io-util"] }
-lazy_static = "1.4.0"
+# Asyc runtime.
 futures = "0.3"
-futures-core = "0.3"
-futures-util = "0.3"
-async-stream = "0.3"
+tokio = { version = "1.6", features = ["macros", "rt-multi-thread", "sync", "fs", "io-util"] }
+# Convert async line iterator to line stream.
+tokio-stream = { version = "0.1", features = ["io-util"] }
+# Static.
+lazy_static = "1.4"
+# Nick hash.
 crc32fast = "1.2"
+# Extract URLs from plain text.
 linkify = "0.7"
-markup = "0.12.2"
-itertools = "0.10.1"
+# For group_by on std::iter.
+# TODO(debt): https://github.com/rust-lang/rust/issues/80552
+itertools = "0.10"
+# Logging facility.
+slog = "2.7"
+sloggers = "2.0"
 
 [dev-dependencies]
+# For testing.
 tempfile = "3.2"

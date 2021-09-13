@@ -7,6 +7,7 @@ $weight: 400
 $bold: 500
 $light: 300
 $line-height: 1.3
+$aside-size: 21ch
 
 body
   font-family: 'Source Code Pro', monospace
@@ -24,18 +25,45 @@ h1
   margin: 0
   padding: 0
   font: inherit
+  font-weight: 500
+
+h2.brand
+  margin: 0
+  padding: 0
+  font: inherit
+  font-size: 1rem
+  color: $muted
 
 aside
   padding: 0
   margin: 0
-  width: 21ch
+  width: $aside-size
   overflow-x: hidden
   word-break: break-all
   position: sticky
   align-self: flex-start
   top: $pad
+  display: flex
+  flex-direction: column
+  gap: $pad
+
+.check-group
+  display: flex
+  flex-direction: column
+  gap: 0
+
+ul.chanlist
+  margin: 0
+  padding: 0
+  list-style: none
+
+  & > li
+    margin: 0
+    padding: 0
 
 form.search
+  margin: 0
+  padding: 0
   width: 100%
   display: flex
   flex-direction: column
@@ -50,6 +78,10 @@ form.search
 main
   flex: 1
 
+  p
+    margin: 0
+    padding: 0
+
 .warning
   $col: lighten(darkred, 10)
   margin: $pad
@@ -63,9 +95,13 @@ main
   display: flex
   flex-direction: row
   gap: 1ch
+  flex-wrap: wrap
 
   &:first-of-type
     margin-top: 0
+
+  & > span
+    white-space: nowrap
 
   .jump
     flex: 1
@@ -75,21 +111,19 @@ main
     content: ' << '
     color: $muted
 
-  .day-prev::before
-    content: ' < '
-    color: $muted
+  //.day-prev::before
+  //  content: ' < '
+  //  color: $muted
 
   .day-today
-    flex: 1
-    text-align: center
     font-weight: $bold
 
     & > span:first-child
       margin: 0 1ch
 
-  .day-next::after
-    content: ' > '
-    color: $muted
+  //.day-next::after
+  //  content: ' > '
+  //  color: $muted
 
   .day-last::after
     content: ' >> '
@@ -129,7 +163,7 @@ tbody.search-date
     &, .nick
       font-weight: $light
 
-  &.without-noise
+  &.hide-join-part
     // Non-chat.
     tbody.msg:not([data-oper=""]):not([data-oper="me"])
       display: none
@@ -178,13 +212,6 @@ tbody.search-date
 .nick-neutral
   color: $muted
 
-//aside
-//  display: flex
-//  flex-direction: row
-//  padding: $pad
-//  gap: $pad * 2
-//  align-items: flex-start
-
 nav
   width: 100%
   display: flex
@@ -193,13 +220,7 @@ nav
   span
     padding: 0 $pad/4
 
-  span:nth-child(2)
-    flex: 1
-    text-align: center
-
 .calendar
-  margin: $pad/2 0
-
   table
     border-collapse: collapse
 
@@ -225,6 +246,10 @@ nav
     text-decoration: underline
     text-decoration-style: double
 
+.current
+  text-align: center
+  flex: 1
+
 blockquote.last-topic
   margin: 0
   padding: 0 0 $pad
@@ -240,3 +265,10 @@ blockquote.last-topic
 @for $i from 0 through 16
   .nick-#{$i}
     color: adjust-hue(desaturate(#0183b7, 60), $i*(360/16)*1deg)
+
+@media (max-width: 600px)
+  body
+    flex-direction: column
+
+  aside
+    position: unset
