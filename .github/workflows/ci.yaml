@@ -4,6 +4,7 @@ jobs:
   build_and_test:
     name: "build & test"
     runs-on: ubuntu-latest
+    if: "contains(github.event.head_commit.message, '[build]')"
     steps:
       - uses: actions/checkout@v2
 
@@ -26,7 +27,7 @@ jobs:
           SQLX_OFFLINE: true
 
   clippy:
-    name: "annotate code with clippy"
+    name: "check code with clippy and tslint"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -37,6 +38,14 @@ jobs:
           components: clippy
           override: true
 
-      - uses: actions-rs/clippy-check@v1
+      - name: clippy
+        uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: tslint
+        uses: mooyoul/tslint-actions@v1.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config: "ircj-serve/tslint.json"
+          pattern: "ircj-serve/static/js/*.ts"
