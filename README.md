@@ -9,15 +9,8 @@ A lightweight, fast, standalone IRC log viewer for the web, with real-time log i
 * Simple, no-dependency, JavaScript-optional web front-end to browse and full-text search IRC logs.
 * Standalone IRC ingestion binary that observes log files for updates and save new lines.
 
-### Dependencies
-
-The tool relies on a PostgresSQL database for full-text search indexing and notification mechanism (live updates).
-This is the only runtime dependency.
 
 ### Components
-
-* Run `ircj-watch` on the machine with the IRC log files. It will watch for changes and save new lines to the database. You can run `irc-watcher` on multiple machines. Each instance can ingest any number of log files.
-* Run `ircj-serve` to expose the web interface, directly or behind a web server.
 
 Double-line boxes can be on the same machine or behind network boundaries, making for a pretty flexible setup.
 
@@ -39,6 +32,51 @@ User ◄───┤ Browser     │                   ║ │ IRC client  │ �
                          ║ └─────────────┘ ║
                          ╚═════════════════╝
 ```
+
+### PostgreSQL database
+
+ircjournal relies on a PostgreSQL database for full-text search indexing and the notification mechanism (live updates).
+This is the only runtime dependency.
+
+Please create an empty database and user for it. ircjournal will set it up  automatically on the first run.
+
+#### ircj-serve
+
+Run `ircj-serve` to expose the web interface, directly or behind a reverse-proxy server such as nginx.
+You need to set the `IRCJ_DB` environment variable to a valid database URI:
+
+    IRCJ_DB=postgresql://[username:pswd]@[host]/[db]
+
+#### ircj-watch
+
+Run `ircj-watch` on the machine with the IRC log files. It will watch for changes and save new lines to the database.
+You can run `irc-watcher` on multiple machines. Each instance can ingest any number of log files.
+
+You need to set:
+
+* the `IRCJ_DB` environment variable to a valid database URI:
+
+      IRCJ_DB=postgresql://[username:pswd]@[host]/[db]
+
+* the `IRCJ_PATHS` environment variable to a list of file paths to ingest:
+
+      IRCJ_PATHS=[/data/logs/irc.libera.#foo.weechatlog,/data/logs/irc.libera.#bar.weechatlog]
+
+There are [other `IRCJ_` variables]() you can set to tweak the backfill mechanism.
+
+##### The backfill mechanism
+
+The first time you run `ircj-watch` on an empty database, or whenever you add a new log file, or if new lines were added
+in a channel while `ircj-watch` was *not* running, the program will attempt to find the last recorded line in the file
+and backfill (save) the missing new lines in the database. It will then continue watching for changes, as usual.
+
+It is therefore safe to restart the `ircj-watch` binary at any time.
+
+#### Logging level
+
+ircjournal uses the popular `env_logger` crate. You can [customize log levels](https://docs.rs/env_logger/*/env_logger/#enabling-logging)
+a per-module granularity with the `RUST_LOG` environment variable.
+For instance, use `RUST_LOG=warn,ircj_serve=info` to warn by default, and have info-level logs for ircjournal.
 
 ### License
 
