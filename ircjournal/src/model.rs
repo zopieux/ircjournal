@@ -69,10 +69,12 @@ impl<'r> FromParam<'r> for ServerChannel {
     type Error = std::io::Error;
 
     fn from_param(encoded: &'r str) -> Result<Self, Self::Error> {
-        let (server, channel) = encoded.split_once(':').ok_or(Self::Error::new(
-            ErrorKind::InvalidInput,
-            format!("invalid server/channel: {}", encoded),
-        ))?;
+        let (server, channel) = encoded.split_once(':').ok_or_else(|| {
+            Self::Error::new(
+                ErrorKind::InvalidInput,
+                format!("invalid server/channel: {}", encoded),
+            )
+        })?;
         Ok(Self::new(server, channel))
     }
 }

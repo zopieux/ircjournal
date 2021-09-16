@@ -21,7 +21,7 @@ pub async fn backfill<L: Logger>(
     chunk_size: usize,
     concurrency: usize,
 ) -> std::io::Result<(ServerChannel, u64, BufReader<File>, PhantomData<L>)> {
-    let sc = L::parse_path(path).ok_or(invalid_input("not a valid filename"))?;
+    let sc = L::parse_path(path).ok_or_else(|| invalid_input("not a valid filename"))?;
     let f = File::open(path).await?;
     let mut reader = tokio::io::BufReader::new(f);
 

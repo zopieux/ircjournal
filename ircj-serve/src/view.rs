@@ -13,8 +13,8 @@ const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 const LINK_TRUNCATE_LENGTH: usize = 40;
 
 enum LinkType {
-    ABSOLUTE,
-    RELATIVE,
+    Absolute,
+    Relative,
 }
 
 fn some_or_empty(s: &Option<String>) -> String {
@@ -104,7 +104,7 @@ pub(crate) fn channel(
     truncated: bool,
 ) -> Markup {
     let sc = &info.sc;
-    let cal = render_calendar(day, &info, active_days);
+    let cal = render_calendar(day, info, active_days);
 
     let date_sel = |from, to, jump, jump_tip| {
         let _link_date = |day: &Day| channel_link(sc, day, html! { (day.ymd()) });
@@ -162,7 +162,7 @@ pub(crate) fn channel(
             }
             table.messages data-stream=(uri!(route::channel_stream(sc))) {
                 tbody {
-                @for msg in messages { (message(msg, sc, &info.nicks, LinkType::RELATIVE)) }
+                @for msg in messages { (message(msg, sc, &info.nicks, LinkType::Relative)) }
                 }
             }
             @if messages.is_empty() {
@@ -219,7 +219,7 @@ pub(crate) fn search(
             table.messages {
                 @for per_day in messages {
                     tbody.search-date { tr { td colspan="3" { (per_day.0.ymd()) } } }
-                    @for msg in &per_day.1 { (message(msg, sc, &info.nicks, LinkType::ABSOLUTE)) }
+                    @for msg in &per_day.1 { (message(msg, sc, &info.nicks, LinkType::Absolute)) }
                 }
             }
             div {
@@ -234,9 +234,9 @@ pub(crate) fn search(
 pub(crate) fn formatted_message(m: &Message) -> String {
     message(
         m,
-        &ServerChannel::from_str(&m.channel.as_ref().unwrap()).unwrap(),
+        &ServerChannel::from_str(m.channel.as_ref().unwrap()).unwrap(),
         &HashSet::new(),
-        LinkType::RELATIVE,
+        LinkType::Relative,
     )
     .into_string()
 }
@@ -297,13 +297,11 @@ fn format_hl_nick(content: &str, nicks: &Nicks) -> Markup {
     lazy_static! {
         static ref NICK: Regex = Regex::new(r#"^([A-Za-z_0-9|.`-]+)"#).unwrap();
     }
-    if !nicks.is_empty() {
-        if NICK.is_match(content) {
-            let cap = NICK.captures(content).unwrap().get(1).unwrap();
-            let nick = cap.as_str().to_string();
-            if nicks.contains(&nick) {
-                return html! { (format_nick(&nick)) (highlight(&content[cap.end()..])) };
-            }
+    if !nicks.is_empty() && NICK.is_match(content) {
+        let cap = NICK.captures(content).unwrap().get(1).unwrap();
+        let nick = cap.as_str().to_string();
+        if nicks.contains(&nick) {
+            return html! { (format_nick(&nick)) (highlight(&content[cap.end()..])) };
         }
     }
     highlight(content)
@@ -356,11 +354,10 @@ fn format_message(m: &Message, nicks: &Nicks) -> Markup {
 
 fn message(m: &Message, sc: &ServerChannel, nicks: &Nicks, link_type: LinkType) -> Markup {
     let rel = match link_type {
-        LinkType::ABSOLUTE => uri!(route::channel(sc, m.timestamp.into())).to_string(),
+        LinkType::Absolute => uri!(route::channel(sc, m.timestamp.into())).to_string(),
         _ => "".to_string(),
     };
     html! {
-        // tbody#(m.id_str()).msg data-timestamp=(m.epoch()) data-oper=(some_or_empty(&m.opcode)) {
         tr#(m.id_str()).msg data-timestamp=(m.epoch()) data-oper=(some_or_empty(&m.opcode)) {
                 td.ts { a.tslink title=(m.timestamp.to_rfc3339()) href={(rel) "#" (m.id_str())} { (m.timestamp.format("%H:%M")) } }
                 @if m.is_talk() {
@@ -368,9 +365,8 @@ fn message(m: &Message, sc: &ServerChannel, nicks: &Nicks, link_type: LinkType) 
                 } @else {
                     td.nick.operation { "*" }
                 }
-                td.line { (format_message(m, &nicks)) }
+                td.line { (format_message(m, nicks)) }
             }
-        // }
     }
 }
 
@@ -378,24 +374,14 @@ fn render_calendar(day: &Day, info: &ChannelInfo, active_days: &HashSet<u32>) ->
     let sc = &info.sc;
     let month = &calendar(day, active_days);
     let today = &Day::today();
-    // let if_not_same_month = |d: &Day, text, title| html! {
-    //     span {
-    //         @if d.ym() == day.ym() { (text) }
-    //         @else {
-    //             a href=(uri!(route::channel(sc, d.clone()))) title=(title) { (text) }
-    //         }
-    //     }
-    // };
     html! {
         section.calendar {
             nav {
-                // (if_not_same_month(&info.first_day, "\u{291a}", "Jump to first available logs"))
                 span { a href=(uri!(route::channel(sc, info.first_day.clone()))) title="Jump to first available logs" { "\u{291a}" } }
                 span { a href=(uri!(route::channel(sc, month.prev.clone()))) title="Previous month" { "«" } }
                 span.current { (day.month()) }
                 span { a href=(uri!(route::channel(sc, month.succ.clone()))) title="Next month" { "»" } }
                 span { a href=(uri!(route::channel(sc, info.last_day.clone()))) title="Jump to last available logs" { "\u{2919}" } }
-                // (if_not_same_month(&info.last_day, "\u{2919}", "Jump to last available logs"))
             }
             table {
                 thead {
@@ -463,7 +449,7 @@ fn calendar(day: &Day, active_days: &HashSet<u32>) -> OneMonth {
 
     let offset_monday = sow.weekday().num_days_from_monday() as usize;
 
-    let mut days = (1..=num_days).into_iter();
+    let mut days = 1..=num_days;
     let first_week: OneWeek = core::iter::repeat(None)
         .take(offset_monday)
         .chain((1..=(7 - offset_monday)).map(|_| gen(days.next().unwrap() as u32)))

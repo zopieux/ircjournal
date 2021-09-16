@@ -41,7 +41,7 @@ pub async fn batch_insert_messages(db: &Database, messages: &[NewMessage]) -> Op
     let mut v_oper_nick: Vec<Option<String>> = Vec::with_capacity(messages.len());
     let mut v_payload: Vec<Option<String>> = Vec::with_capacity(messages.len());
     let mut v_timestamp: Vec<Datetime> = Vec::with_capacity(messages.len());
-    messages.into_iter().for_each(|m| {
+    messages.iter().for_each(|m| {
         v_channel.push(m.channel.as_ref().unwrap());
         v_nick.push(m.nick.clone());
         v_line.push(m.line.clone());

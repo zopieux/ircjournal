@@ -1,4 +1,3 @@
-#![feature(iter_intersperse)]
 #[macro_use]
 extern crate rocket;
 
@@ -78,21 +77,15 @@ trait MessageExt {
 
 impl MessageExt for Message {
     fn sc(&self) -> ServerChannel {
-        ServerChannel::from_str(&self.channel.as_ref().unwrap()).unwrap()
+        ServerChannel::from_str(self.channel.as_ref().unwrap()).unwrap()
     }
 
     fn is_talk(&self) -> bool {
-        match (&self.opcode, &self.nick) {
-            (None, Some(nick)) if !nick.is_empty() => true,
-            _ => false,
-        }
+        matches!((&self.opcode, &self.nick), (None, Some(nick)) if !nick.is_empty())
     }
 
     fn is_me_tell(&self) -> bool {
-        match self.opcode.as_deref() {
-            Some("me") => true,
-            _ => false,
-        }
+        matches!(self.opcode.as_deref(), Some("me"))
     }
 
     fn id_str(&self) -> String {

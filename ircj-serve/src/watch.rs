@@ -26,7 +26,7 @@ pub fn save_broadcast_task(
                 _ = &mut shutdown => break,
                 Ok(notification) = listener.recv() => {
                     if let Ok(message) = serde_json::from_str::<Message>(notification.payload()) {
-                        let sc = ServerChannel::from_str(&message.channel.as_ref().unwrap()).unwrap();
+                        let sc = ServerChannel::from_str(message.channel.as_ref().unwrap()).unwrap();
                         let _ = broadcast.send((sc.clone(), view::formatted_message(&message)));
                         debug!("New message for {:?}, id {}", &sc, message.id);
                     }

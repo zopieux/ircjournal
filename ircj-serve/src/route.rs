@@ -188,7 +188,7 @@ impl rocket::route::Handler for StaticFiles {
                     .extension()
                     .and_then(std::ffi::OsStr::to_str)?
                     .to_owned();
-                Some(StaticAsset::get(path.to_str()?).map(|file| StaticFile { extension, file })?)
+                StaticAsset::get(path.to_str()?).map(|file| StaticFile { extension, file })
             })(req)
             {
                 Some(resp) => Ok(resp),
@@ -198,10 +198,10 @@ impl rocket::route::Handler for StaticFiles {
     }
 }
 
-impl Into<Vec<rocket::Route>> for StaticFiles {
-    fn into(self) -> Vec<Route> {
-        let mut route = rocket::Route::ranked(100, rocket::http::Method::Get, "/<path..>", self);
-        route.name = Some(format!("StaticFiles: static/").into());
+impl From<StaticFiles> for Vec<rocket::Route> {
+    fn from(sf: StaticFiles) -> Self {
+        let mut route = rocket::Route::ranked(100, rocket::http::Method::Get, "/<path..>", sf);
+        route.name = Some("StaticFiles".into());
         vec![route]
     }
 }
