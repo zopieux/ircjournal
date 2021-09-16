@@ -17,10 +17,25 @@ use ircjournal::{
     Logger, ParseResult,
 };
 
-#[derive(serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Config {
     db: String,
     paths: Vec<PathBuf>,
+    backfill: bool,
+    backfill_batch_size: usize,
+    backfill_concurrency: usize,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            db: "".to_owned(),
+            paths: vec![],
+            backfill: true,
+            backfill_batch_size: 5_000,
+            backfill_concurrency: 4,
+        }
+    }
 }
 
 #[tokio::main]
@@ -28,6 +43,7 @@ async fn main() -> Result<(), figment::Error> {
     env_logger::init();
 
     let config: Config = Figment::new()
+        .merge(figment::providers::Serialized::defaults(Config::default()))
         .merge(figment::providers::Yaml::file("ircj-watch.yml"))
         .merge(figment::providers::Env::prefixed("IRCJ_"))
         .extract()?;
@@ -40,6 +56,9 @@ async fn main() -> Result<(), figment::Error> {
         ));
 
     // First, backfill.
+    let do_backfill = config.backfill;
+    let batch_size = config.backfill_batch_size;
+    let concurrency = config.backfill_concurrency;
     let results: Vec<_> = futures::stream::iter(config.paths)
         .zip(futures::stream::repeat(pool.clone()))
         .map(|(path, pool)| async move {
@@ -47,7 +66,14 @@ async fn main() -> Result<(), figment::Error> {
             (
                 path.clone(),
                 // TODO: generify.
-                backfill::<ircjournal::weechat::Weechat>(&path, &pool, 5000, 4).await,
+                backfill::<ircjournal::weechat::Weechat>(
+                    &path,
+                    &pool,
+                    do_backfill,
+                    batch_size,
+                    concurrency,
+                )
+                .await,
             )
         })
         .buffer_unordered(2)

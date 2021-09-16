@@ -7,18 +7,12 @@ use rocket::fairing::AdHoc;
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct Config {
     pub db: String,
-    pub backfill: bool,
-    pub backfill_chunk_size: u64,
-    pub backfill_concurrency: u64,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             db: "postgresql://ircjournal@localhost/ircjournal".to_owned(),
-            backfill: true,
-            backfill_chunk_size: 5_000,
-            backfill_concurrency: 4,
         }
     }
 }

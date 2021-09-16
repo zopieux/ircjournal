@@ -3,7 +3,7 @@ use ircjournal::model::ServerChannel;
 use std::{marker::PhantomData, path::Path};
 use tokio::{
     fs::File,
-    io::{AsyncBufReadExt, BufReader},
+    io::{AsyncBufReadExt, AsyncSeekExt, BufReader, SeekFrom},
 };
 use tokio_stream::wrappers::LinesStream;
 
@@ -18,12 +18,18 @@ fn invalid_input(msg: &str) -> std::io::Error {
 pub async fn backfill<L: Logger>(
     path: &Path,
     db: &Database,
+    backfill: bool,
     chunk_size: usize,
     concurrency: usize,
 ) -> std::io::Result<(ServerChannel, u64, BufReader<File>, PhantomData<L>)> {
     let sc = L::parse_path(path).ok_or_else(|| invalid_input("not a valid filename"))?;
     let f = File::open(path).await?;
     let mut reader = tokio::io::BufReader::new(f);
+
+    if !backfill {
+        reader.seek(SeekFrom::End(0)).await?;
+        return Ok((sc, 0, reader, PhantomData));
+    }
 
     // Do we have a last message in the DB already?
     let sc_ = sc.clone();
