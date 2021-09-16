@@ -1,14 +1,13 @@
-use std::collections::HashSet;
-
 use chrono::{Datelike, NaiveDate};
+use lazy_static::lazy_static;
 use maud::{html, Markup, PreEscaped, DOCTYPE};
 use regex::Regex;
 use rocket::uri;
+use std::{collections::HashSet, str::FromStr};
 
-use crate::{
-    model::{ChannelInfo, Day, Message, MessagesPerDay, Nicks, ServerChannel},
-    route,
-};
+use ircjournal::model::{Message, ServerChannel};
+
+use crate::{db::MessagesPerDay, route, ChannelInfo, Day, MessageExt, Nicks};
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 const LINK_TRUNCATE_LENGTH: usize = 40;
@@ -27,8 +26,7 @@ fn channel_link(sc: &ServerChannel, day: &Day, content: Markup) -> Markup {
 }
 
 fn message_link(m: &Message, content: Markup) -> Markup {
-    let day = Day::new(&m.timestamp);
-    html! { a href={(uri!(route::channel(&m.sc(), day))) "#" (m.id_str())} { (content) } }
+    html! { a href={(uri!(route::channel(&m.sc(), m.timestamp.into()))) "#" (m.id_str())} { (content) } }
 }
 
 macro_rules! format_some {
@@ -133,7 +131,7 @@ pub(crate) fn channel(
         }
     };
     base(
-        &sc.db_encode(),
+        &sc.to_string(),
         html! {
             (home_link())
             (cal)
@@ -163,7 +161,9 @@ pub(crate) fn channel(
                 }
             }
             table.messages data-stream=(uri!(route::channel_stream(sc))) {
+                tbody {
                 @for msg in messages { (message(msg, sc, &info.nicks, LinkType::RELATIVE)) }
+                }
             }
             @if messages.is_empty() {
                 p.empty { "No messages for " (day.ymd()) "." }
@@ -191,7 +191,7 @@ pub(crate) fn search(
                 @if p as u64 == page {
                     (p)
                 } @else {
-                    a href=(uri!(route::search(sc, query, Some(p as u64)))) { (p) }
+                    a href=(uri!(route::channel_search(sc, query, Some(p as u64)))) { (p) }
                 }
             }
         })
@@ -199,10 +199,10 @@ pub(crate) fn search(
         .collect();
     let pages = html! { @for p in pages { (p) } };
     base(
-        &sc.db_encode(),
+        &sc.to_string(),
         html! {
             (home_link())
-            a href="#" onclick="window.history.back(); return false" { "Back" }
+            a href=(uri!(route::channel_redirect(sc))) { "Back to channel" }
             (search_form(sc, query))
         },
         html! {
@@ -234,7 +234,7 @@ pub(crate) fn search(
 pub(crate) fn formatted_message(m: &Message) -> String {
     message(
         m,
-        &ServerChannel::db_decode(&m.channel).unwrap(),
+        &ServerChannel::from_str(&m.channel.as_ref().unwrap()).unwrap(),
         &HashSet::new(),
         LinkType::RELATIVE,
     )
@@ -279,7 +279,7 @@ fn clean(line: &str) -> String {
 
 fn search_form(sc: &ServerChannel, query: &str) -> Markup {
     html! {
-        form.search action=(uri!(route::search(sc, "", None as Option<u64>))) method="get" {
+        form.search action=(uri!(route::channel_search(sc, "", None as Option<u64>))) method="get" {
             input name="query" value=(query) placeholder="Search this channel";
             button type="submit" { "Search" }
         }
@@ -356,12 +356,12 @@ fn format_message(m: &Message, nicks: &Nicks) -> Markup {
 
 fn message(m: &Message, sc: &ServerChannel, nicks: &Nicks, link_type: LinkType) -> Markup {
     let rel = match link_type {
-        LinkType::ABSOLUTE => uri!(route::channel(sc, Day::new(&m.timestamp))).to_string(),
-        _ => "".to_owned(),
+        LinkType::ABSOLUTE => uri!(route::channel(sc, m.timestamp.into())).to_string(),
+        _ => "".to_string(),
     };
     html! {
-        tbody#(m.id_str()).msg data-timestamp=(m.epoch()) data-oper=(some_or_empty(&m.opcode)) {
-            tr {
+        // tbody#(m.id_str()).msg data-timestamp=(m.epoch()) data-oper=(some_or_empty(&m.opcode)) {
+        tr#(m.id_str()).msg data-timestamp=(m.epoch()) data-oper=(some_or_empty(&m.opcode)) {
                 td.ts { a.tslink title=(m.timestamp.to_rfc3339()) href={(rel) "#" (m.id_str())} { (m.timestamp.format("%H:%M")) } }
                 @if m.is_talk() {
                     td.nick."me-tell"[m.is_me_tell()] { (format_nick(m.nick.as_ref().unwrap())) }
@@ -370,7 +370,7 @@ fn message(m: &Message, sc: &ServerChannel, nicks: &Nicks, link_type: LinkType) 
                 }
                 td.line { (format_message(m, &nicks)) }
             }
-        }
+        // }
     }
 }
 
@@ -458,7 +458,8 @@ fn calendar(day: &Day, active_days: &HashSet<u32>) -> OneMonth {
     let succ_month_day =
         closest_day(&NaiveDate::from_ymd(day.0.year(), day.0.month(), num_days as u32).succ());
 
-    let gen = |d: u32| Some((Day(sow.with_day(d).unwrap()), active_days.contains(&d)));
+    let gen =
+        |d: u32| Some::<(Day, _)>((sow.with_day(d).unwrap().into(), active_days.contains(&d)));
 
     let offset_monday = sow.weekday().num_days_from_monday() as usize;
 

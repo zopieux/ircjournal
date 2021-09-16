@@ -1,0 +1,28 @@
+[package]
+name = "ircj-watch"
+version = "0.1.0"
+authors = ["Alexandre Macabies <web+oss@zopieux.com>"]
+edition = "2018"
+
+[dependencies]
+ircjournal = { path = "../ircjournal" }
+# Abstract logging.
+log = "0.4"
+# Logging backend.
+env_logger = "0.9"
+# Pin utils.
+pin-project-lite = "0.2"
+# Watch for new logs.
+inotify = "0.9"
+# Configuration.
+figment = { version = "0.10", features = ["env", "yaml"] }
+# Asyc stuff.
+futures = "0.3"
+# Iter helpers.
+itertools = "0.10"
+# Async runtime.
+tokio = { version = "1.11", features = ["rt-multi-thread", "fs"] }
+# Convert async line iterator to line stream.
+tokio-stream = { version = "0.1", features = ["io-util"] }
+# Deserialization, used by figment.
+serde = { version = "1.0", features = ["derive"] }

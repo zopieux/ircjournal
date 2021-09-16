@@ -1,0 +1,43 @@
+[package]
+name = "ircj-serve"
+version = "0.1.0"
+authors = ["Alexandre Macabies <web+oss@zopieux.com>"]
+edition = "2018"
+
+[dependencies]
+ircjournal = { path = "../ircjournal" }
+# Logging backend.
+env_logger = "0.9"
+# Configuration.
+figment = { version = "0.10", features = ["env", "yaml"] }
+# Async runtime.
+tokio = { version = "1.6", features = ["macros", "rt-multi-thread", "sync", "fs", "io-util"] }
+# HTTP server.
+# TODO(debt): update to stable release (0.5).
+rocket = "0.5.0-rc.1"
+# Programmatic HTML templates.
+# TODO(debt): blocked on new rocket release (0.5) and follow-up maud release.
+maud = { git = "https://github.com/Zopieux/maud", branch = "support-rocket-0.5.0-rc.1", features = ["rocket"] }
+# Nick hash.
+crc32fast = "1.2"
+# Extract URLs from plain text.
+linkify = "0.7"
+# Date & time utils.
+chrono = { version = "0.4", features = ["serde"] }
+# Iter helpers.
+itertools = "0.10"
+# Database pool and migrations.
+sqlx = { version = "0.5", features = ["runtime-tokio-native-tls", "postgres", "migrate", "macros", "chrono", "offline"] }
+# Static.
+lazy_static = "1.4"
+# Regexp, for parsing a bunch of things.
+regex = "1"
+# Deserialization, used by figment.
+serde = { version = "1.0", features = ["derive"] }
+# To deserialize pgsql notifications.
+serde_json = "1"
+# Embed resources.
+# We need to reinvent the wheel for some reason.
+async-trait = "0.1"
+hex = "0.4"
+rust-embed = { version = "6.2", features = ["debug-embed", "include-exclude"] }

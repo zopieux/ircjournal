@@ -1,7 +1,6 @@
-use std::path::Path;
-
 use lazy_static::lazy_static;
 use regex::{Match, Regex};
+use std::path::Path;
 
 use crate::{
     model::{Datetime, ServerChannel},
@@ -10,14 +9,19 @@ use crate::{
 
 lazy_static! {
     static ref FNAME: Regex = Regex::new(r"^irc\.(.+)\.(#.+|.+)\.weechatlog$").unwrap();
-    static ref LINE: Regex = Regex::new(r"^([0-9]{4}\-[0-9]{2}\-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})\t(.*)$").unwrap();
-    // static ref LOG_GARBAGE: Regex = Regex::new(r#"^--\t(?:\[.*?\]|#(.+?): (Unknown|Cannot)|irc|Notice|Mode|Topic (set|for)|Channel|You are|Nicks)"#).unwrap();
-    static ref LOG_NICK_CHANGED: Regex = Regex::new(r#"^--\t(\S+) is now known as (\S+)$"#).unwrap();
-    static ref LOG_TOPIC_CHANGED: Regex = Regex::new(r#"^--\t(\S+) has changed topic for \S+ from "(.*?)" to "(.*?)"$"#).unwrap();
+    static ref LINE: Regex =
+        Regex::new(r"^([0-9]{4}\-[0-9]{2}\-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})\t(.*)$").unwrap();
+    static ref LOG_NICK_CHANGED: Regex =
+        Regex::new(r#"^--\t(\S+) is now known as (\S+)$"#).unwrap();
+    static ref LOG_TOPIC_CHANGED: Regex =
+        Regex::new(r#"^--\t(\S+) has changed topic for \S+ from "(.*?)" to "(.*?)"$"#).unwrap();
     static ref LOG_JOINED: Regex = Regex::new(r#"^-->\t(\S+) \(.*?\) has joined (#.+)$"#).unwrap();
-    static ref LOG_LEFT: Regex = Regex::new(r#"^<--\t(\S+) \(.*?\) has left (#.+?)(?: \("(.*?)"\))?$"#).unwrap();
-    static ref LOG_QUIT: Regex = Regex::new(r#"^<--\t(\S+) \(.*?\) has quit(?: \((.*?)\))?$"#).unwrap();
-    static ref LOG_KICKED: Regex = Regex::new(r#"^<--\t(\S+) has kicked (\S+)(?: \((.*?)\))?$"#).unwrap();
+    static ref LOG_LEFT: Regex =
+        Regex::new(r#"^<--\t(\S+) \(.*?\) has left (#.+?)(?: \("(.*?)"\))?$"#).unwrap();
+    static ref LOG_QUIT: Regex =
+        Regex::new(r#"^<--\t(\S+) \(.*?\) has quit(?: \((.*?)\))?$"#).unwrap();
+    static ref LOG_KICKED: Regex =
+        Regex::new(r#"^<--\t(\S+) has kicked (\S+)(?: \((.*?)\))?$"#).unwrap();
     static ref LOG_ME: Regex = Regex::new(r#"^ \*\t(\S+)(?: (.*))?$"#).unwrap();
     static ref LOG_MESSAGE: Regex = Regex::new(r#"^([^\s<-]\S*)\t(.*)$"#).unwrap();
 }

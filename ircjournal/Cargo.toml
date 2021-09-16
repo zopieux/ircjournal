@@ -1,0 +1,27 @@
+[package]
+name = "ircjournal"
+version = "0.1.0"
+authors = ["Alexandre Macabies <web+oss@zopieux.com>"]
+edition = "2018"
+
+[dependencies]
+# Database pool and migrations.
+sqlx = { version = "0.5", features = ["runtime-tokio-native-tls", "postgres", "chrono", "migrate", "macros", "offline"] }
+# Date & time utils.
+chrono = { version = "0.4", features = ["serde"] }
+# Deserialization, used by figment.
+serde = { version = "1.0", default-features = true, features = ["derive"] }
+# Regexp, for parsing a bunch of things.
+regex = "1"
+# Async runtime.
+tokio = { version = "1.6", default-features = false, features = ["fs", "io-util"] }
+# Static.
+lazy_static = "1.4"
+# Standard logging (sans backend).
+log = "0.4"
+# To implement some rocket traits, eg. url decoding.
+rocket = { version = "0.5.0-rc.1", default-features = false, features = [] }
+
+[dev-dependencies]
+# For testing.
+tempfile = "3.2"

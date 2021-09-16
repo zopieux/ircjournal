@@ -1,6 +1,6 @@
 .sass-cache/
-/target
-/static/**/*.css
-/static/**/*.css.map
-/static/**/*.js
-/static/**/*.js.map
+target/
+/ircj-serve/static/**/*.css
+/ircj-serve/static/**/*.css.map
+/ircj-serve/static/**/*.js
+/ircj-serve/static/**/*.js.map

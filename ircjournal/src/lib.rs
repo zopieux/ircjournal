@@ -1,71 +1,15 @@
-#![feature(async_stream, async_closure)]
-#![feature(generators)]
-#![feature(iter_intersperse)]
-
-#[macro_use]
-extern crate diesel;
-#[macro_use]
-extern crate diesel_migrations;
-extern crate inotify;
-#[macro_use]
 extern crate lazy_static;
-#[macro_use]
-extern crate rocket;
 
-use std::{
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::path::Path;
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncSeekExt, BufReader, SeekFrom};
 
-use futures::stream::StreamExt;
-use rocket::serde::{Deserialize, Serialize};
-use tokio::{
-    fs::File,
-    io::{AsyncBufReadExt, AsyncRead, AsyncSeekExt, BufReader, SeekFrom},
-    select,
-    sync::{broadcast, mpsc},
-};
-use tokio_stream::wrappers::LinesStream;
-
-use crate::{
-    db::{batch_insert_messages, last_message},
-    model::{Datetime, NewMessage, ServerChannel},
-    weechat::Weechat,
-};
+pub use crate::model::{Datetime, NewMessage, ServerChannel};
+pub type Database = sqlx::postgres::PgPool;
+pub type MessageEvent = (ServerChannel, String);
 
 pub mod db;
 pub mod model;
-pub mod route;
-pub mod route_adapt;
-pub mod schema;
-pub mod view;
-pub mod watch;
 pub mod weechat;
-
-pub use db::{run_migrations, Database};
-pub use route::routes;
-pub use watch::watch_for_changes_task;
-
-pub type MessageEvent = (ServerChannel, String);
-
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub struct Config {
-    pub logs: Vec<PathBuf>,
-    pub backfill: bool,
-    pub backfill_chunk_size: usize,
-    pub backfill_concurrency: usize,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            logs: vec![],
-            backfill: true,
-            backfill_chunk_size: 4_000,
-            backfill_concurrency: 4,
-        }
-    }
-}
 
 #[derive(PartialEq, Debug)]
 pub enum IrcLine {
@@ -111,7 +55,7 @@ pub fn line_to_new_message(
     timestamp: Datetime,
 ) -> Option<NewMessage> {
     let m: NewMessage = NewMessage {
-        channel: sc.db_encode(),
+        channel: Some(sc.to_string()),
         timestamp,
         opcode: None,
         payload: None,
@@ -179,7 +123,7 @@ pub fn line_to_new_message(
     }
 }
 
-async fn seek_past_line<L: Logger, F>(
+pub async fn seek_past_line<L: Logger, F>(
     reader: &mut BufReader<F>,
     needle: &Datetime,
 ) -> Option<DatedIrcLine>
@@ -211,18 +155,37 @@ where
             (ts, _) if ts < needle => start = mid + 1,
             (ts, 0) if ts > needle => return None,
             (ts, _) if ts > needle => end = mid - 1,
-            (_, _) /* if ts == needle */ => {
-                // I don't know why this line is necessary, but it is.
-                reader.seek(SeekFrom::Current(0)).await.ok()?;
+            (_, _) /* ts == needle */ => {
+                // In the (unlikely) case there are multiple messages with the same timestamp,
+                // continue reading.
+                let mut dated_line = dated_line;
+                let mut last_pos = reader.seek(SeekFrom::Current(0)).await.ok()?;
+                loop {
+                    line.clear();
+                    let parsed = match reader.read_line(&mut line).await {
+                        Ok(0) => break,
+                        Ok(_) => L::parse_line(&line[0..line.len() - 1]),
+                        Err(_) => break,
+                    };
+                    match parsed {
+                        ParseResult::Invalid => break,
+                        ParseResult::Noise => break,
+                        ParseResult::Ok((mts, _)) if mts != dated_line.0 => break,
+                        ParseResult::Ok(new_dated_line) => /* mts == ts */ {
+                            // Same timestamp. Advance the cursor.
+                            dated_line = new_dated_line;
+                            last_pos = reader.seek(SeekFrom::Current(0)).await.ok()?;
+                            continue;
+                        }
+                    }
+                }
+                // Reset to wherever we were before the ts changed.
+                reader.seek(SeekFrom::Start(last_pos)).await.ok()?;
                 return Some(dated_line);
             }
         }
     }
     None
-}
-
-pub(crate) fn invalid_input(msg: &str) -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::InvalidInput, msg)
 }
 
 type DatedIrcLine = (Datetime, IrcLine);
@@ -237,101 +200,6 @@ pub enum ParseResult {
 pub trait Logger {
     fn parse_path(path: &Path) -> Option<ServerChannel>;
     fn parse_line(line: &str) -> ParseResult;
-}
-
-pub async fn backfill<L: Logger>(
-    path: &Path,
-    conn: &Database,
-    chunk_size: usize,
-    concurrency: usize,
-) -> std::io::Result<(ServerChannel, usize)> {
-    let sc = L::parse_path(path).ok_or(invalid_input("not a valid filename"))?;
-    let f = File::open(path).await?;
-    let mut reader = tokio::io::BufReader::new(f);
-
-    // Do we have a last message in the DB already?
-    let sc_ = sc.clone();
-    if let Some(last_message) = conn.run(move |c| last_message(c, &sc_)).await {
-        // If so, before reading further, seek past it.
-        seek_past_line::<L, _>(&mut reader, &last_message.timestamp).await;
-    }
-
-    // Stream of valid NewMessages, ignoring errors.
-    let lines = LinesStream::new(reader.lines());
-    let sc_ = sc.clone();
-    let message_stream =
-        lines
-            .zip(futures::stream::repeat(sc_))
-            .filter_map(|(line, sc)| async move {
-                let line = line.ok()?;
-                match L::parse_line(&line) {
-                    ParseResult::Ok((ts, line)) => line_to_new_message(line, &sc, ts),
-                    _ => None,
-                }
-            });
-    // Concurrently insert in batches.
-    let inserted: usize = message_stream
-        .chunks(chunk_size)
-        .map(|messages| async {
-            conn.run(move |c| batch_insert_messages(c, &messages))
-                .await
-                .unwrap_or(0)
-        })
-        .buffered(concurrency)
-        .collect::<Vec<usize>>()
-        .await
-        .iter()
-        .sum();
-    Ok((sc, inserted))
-}
-
-pub fn save_broadcast_task(
-    logger: slog::Logger,
-    db: Database,
-    broadcast: broadcast::Sender<MessageEvent>,
-    mut new_messages: mpsc::UnboundedReceiver<NewMessage>,
-    mut shutdown: rocket::Shutdown,
-) {
-    tokio::spawn(async move {
-        loop {
-            select! {
-                _ = &mut shutdown => break,
-                Some(new_message) = new_messages.recv() => {
-                    let sc = ServerChannel::db_decode(new_message.channel.as_str()).expect("decoding channel");
-                    let message = db.run(move |c| db::insert_message(c, &new_message)).await.expect("inserting");
-                    let _ = broadcast.send((sc.clone(), view::formatted_message(&message)));
-                    slog::debug!(logger, "Observed and saved new message for {:?}, id {}", &sc, message.id);
-                },
-            }
-        }
-    });
-}
-
-pub async fn run_backfills(logger: &slog::Logger, config: &Config, db: &Database) {
-    let now = Instant::now();
-    // TODO: consider move concurrency here (distribute within files but also across files).
-    for path in &config.logs {
-        // TODO: find a way of writing generic code for each Logger.
-        if let Some(sc) = Weechat::parse_path(path) {
-            if let Ok((_, inserted)) = backfill::<Weechat>(
-                path,
-                db,
-                config.backfill_chunk_size,
-                config.backfill_concurrency,
-            )
-            .await
-            {
-                if inserted > 0 {
-                    slog::info!(logger, "Backfilled {} messages for {:?}", inserted, sc);
-                }
-            } else {
-                slog::error!(logger, "Could not backfill {:?}", sc)
-            }
-        } else {
-            slog::error!(logger, "Could not determine log type for {:?}", path)
-        }
-    }
-    slog::info!(logger, "Backfilled finished in {:?}", Instant::now() - now);
 }
 
 #[cfg(test)]

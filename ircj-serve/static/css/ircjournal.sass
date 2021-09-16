@@ -140,7 +140,7 @@ main
   content: ' › '
   color: $muted
 
-tbody:target, tbody.msg.highlight
+tr:target, tr.msg.highlight
   td
     background-color: darken(lightyellow, 10)
 
@@ -165,7 +165,7 @@ tbody.search-date
 
   &.hide-join-part
     // Non-chat.
-    tbody.msg:not([data-oper=""]):not([data-oper="me"])
+    tr.msg:not([data-oper=""]):not([data-oper="me"])
       display: none
 
   tr
