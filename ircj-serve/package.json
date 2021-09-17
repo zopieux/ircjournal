@@ -6,6 +6,7 @@
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-jsdoc": "^36.1.0",
     "eslint-plugin-prefer-arrow": "^1.2.3",
-    "prettier": "2.4.1"
+    "prettier": "2.4.1",
+    "typescript": "next"
   }
 }

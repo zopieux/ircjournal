@@ -4,7 +4,7 @@ jobs:
   build_and_test:
     name: "build & test"
     runs-on: ubuntu-latest
-    if: "contains(github.event.head_commit.message, '[build]')"
+    if: "contains(github.event.head_commit.message, '[rust]')"
     steps:
       - uses: actions/checkout@v2
 
@@ -26,9 +26,10 @@ jobs:
         env:
           SQLX_OFFLINE: true
 
-  clippy:
-    name: "check code with clippy and tslint"
+  check-rust:
+    name: "check rust code"
     runs-on: ubuntu-latest
+    if: "contains(github.event.head_commit.message, '[rust]')"
     steps:
       - uses: actions/checkout@v2
 
@@ -43,9 +44,14 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: tslint
-        uses: mooyoul/tslint-actions@v1.1.1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          config: "ircj-serve/tslint.json"
-          pattern: "ircj-serve/static/js/*.ts"
+  check-js:
+    name: "check frontend code"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install modules
+        run: cd ircj-serve && yarn
+
+      - name: Run ESLint
+        run: cd ircj-serve && ./node_modules/.bin/eslint . --ext .ts
