@@ -1,6 +1,8 @@
+node_modules/
 .sass-cache/
 target/
 /ircj-serve/static/**/*.css
 /ircj-serve/static/**/*.css.map
 /ircj-serve/static/**/*.js
 /ircj-serve/static/**/*.js.map
+/ircj-serve/package-lock.json

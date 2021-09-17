@@ -1,0 +1,28 @@
+root: true
+
+parser: '@typescript-eslint/parser'
+
+plugins:
+  - '@typescript-eslint'
+  - 'eslint-plugin-jsdoc'
+  - 'eslint-plugin-prefer-arrow'
+
+extends:
+  - 'eslint:recommended'
+  - 'plugin:@typescript-eslint/recommended'
+  - 'plugin:@typescript-eslint/recommended-requiring-type-checking'
+  - 'prettier'
+
+rules:
+  quotes: [error, double]
+  "@typescript-eslint/no-unnecessary-type-assertion":
+    - error
+    - typesToIgnore: [HTMLElement]
+
+env:
+  browser: true
+  node: false
+
+parserOptions:
+  project: ./tsconfig.json
+  sourceType: module

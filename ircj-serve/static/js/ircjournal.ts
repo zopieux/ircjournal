@@ -1,7 +1,7 @@
 const RECONNECT_INTERVAL = 5_000
 
-function scrollToCentered(elem) {
-    elem.scrollIntoView({block: "center"})
+function scrollToCentered(elem: HTMLElement) {
+    elem.scrollIntoView({ block: "center" })
 }
 
 function firstSelectionTarget(): string | null {
@@ -21,10 +21,10 @@ function setHash(selection: string, filter: string) {
 
 const localBool: (name: string) => [() => null | boolean, (val: boolean) => void] = (name) => [
     () => ({"null": null, "true": true, "false": false}["" + window.localStorage.getItem(name)]),
-    (val) => window.localStorage.setItem(name, "" + val),
+    (val) => window.localStorage.setItem(name, val ? "true" : "false"),
 ]
 
-const localCheckbox = (id, cb: (checked: boolean) => any, exec: boolean) => {
+const localCheckbox = (id: string, cb: (checked: boolean) => void, exec: boolean) => {
     const [get, set] = localBool(id)
     const el = document.getElementById(id) as HTMLInputElement
     const curr = get()
@@ -33,7 +33,7 @@ const localCheckbox = (id, cb: (checked: boolean) => any, exec: boolean) => {
     else el.checked = curr
     el.addEventListener("change", () => {
         set(el.checked)
-        if (!!cb) cb(el.checked)
+        if (cb) cb(el.checked)
     })
     if (exec && !!cb) cb(el.checked)
     return el
@@ -41,18 +41,18 @@ const localCheckbox = (id, cb: (checked: boolean) => any, exec: boolean) => {
 
 function app() {
     const messageTable = document.querySelector(".messages") as HTMLElement
-    const bottomMark = document.getElementById("bottom") as HTMLElement
+    const bottomMark = document.getElementById("bottom")
     const clearSelectionButton = document.getElementById("clear-selection") as HTMLButtonElement
 
     function findByIdOrTimestamp(idOrTs: string): [HTMLElement, string] {
         const byId = document.getElementById(idOrTs)
         if (byId) return [byId, idOrTs]
         const byTs = messageTable.querySelector(`.msg[data-timestamp="${idOrTs}"]`) as HTMLElement
-        if (byTs) return [byTs, byTs.dataset.timestamp]
+        if (byTs) return [byTs, (byTs.dataset as { timestamp: never }).timestamp]
     }
 
     function selectSingleLine(idOrTs: string): HTMLElement {
-        let elem
+        let elem: HTMLElement
         const byId = document.getElementById(idOrTs)
         if (byId) {
             elem = byId
@@ -65,7 +65,7 @@ function app() {
 
     function selectLines(rangeOfTs: string[]): HTMLElement {
         const [first, last] = rangeOfTs.map(e => parseInt(e, 10)).sort()
-        let elem = null
+        let elem: HTMLElement = null
         messageTable.querySelectorAll(".msg").forEach((e: HTMLElement) => {
             const ts = parseInt(e.dataset.timestamp, 10)
             if (first <= ts && ts <= last) {
@@ -138,7 +138,7 @@ function app() {
     onHashChange()
 
     const sel = firstSelectionTarget()
-    if (!!sel) {
+    if (sel) {
         const [highlighted] = findByIdOrTimestamp(sel)
         if (highlighted) setTimeout(() => scrollToCentered(highlighted), 250)
     }
@@ -148,15 +148,15 @@ function app() {
         clearSelection()
     })
 
-    const autoScroll = localCheckbox("auto-scroll", _ => maybeScroll(), false)
+    const autoScroll = localCheckbox("auto-scroll", () => maybeScroll(), false)
 
     const maybeScroll = () => {
         if (autoScroll.checked) bottomMark.scrollIntoView({block: "end"})
     }
 
-    let liveStream = null
+    let liveStream: EventSource = null
     const startLiveUpdates = () => {
-        const url = (messageTable as HTMLElement).dataset.stream
+        const url = (messageTable.dataset as { stream: string }).stream
         liveStream = new EventSource(url, {withCredentials: true})
         liveStream.onerror = () => {
             liveStream = null
@@ -182,7 +182,7 @@ function app() {
         autoScroll.disabled = !checked
         if (checked) {
             startLiveUpdates()
-        } else if (!!liveStream) {
+        } else if (liveStream) {
             liveStream.close()
             liveStream = null
         }
