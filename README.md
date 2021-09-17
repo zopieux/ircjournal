@@ -6,7 +6,7 @@ A lightweight, fast, standalone IRC log viewer for the web, with real-time log i
 
 ### Features
 
-* Simple, no-dependency, JavaScript-optional web front-end to browse and full-text search IRC logs.
+* Simple, no-dependency web front-end to browse and full-text search IRC logs.
 * Standalone IRC ingestion binary that observes log files for updates and save new lines.
 
 <p align="center">
@@ -50,6 +50,9 @@ Run `ircj-serve` to expose the web interface, directly or behind a reverse-proxy
 You need to set the `IRCJ_DB` environment variable to a valid database URI:
 
     IRCJ_DB=postgresql://[username:pswd]@[host]/[db name]
+
+There are a few lines of embedded JavaScript to implement the "show join/part" filtering and live updates.
+The interface remains usable with JavaScript disabled.
 
 #### ircj-watch
 
