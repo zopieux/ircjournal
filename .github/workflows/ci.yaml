@@ -15,30 +15,33 @@ jobs:
         env:
           DART_VERSION: 1.42.1
         run: |
-          wget "https://github.com/sass/dart-sass/releases/download/${DART_VERSION}/dart-sass-${DART_VERSION}-linux-x64.tar.gz" -O dart.tar.gz
+          wget --quiet "https://github.com/sass/dart-sass/releases/download/${DART_VERSION}/dart-sass-${DART_VERSION}-linux-x64.tar.gz" -O dart.tar.gz
           tar xzf dart.tar.gz dart-sass/sass
           echo "$(realpath ./dart-sass)" >> $GITHUB_PATH
 
-      - uses: actions-rs/toolchain@v1
+      - name: Setup Install rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           components: clippy
           override: true
 
-      - uses: actions-rs/cargo@v1
+      - name: cargo build
+        uses: actions-rs/cargo@v1
         with:
           command: build
           args: --all-targets
         env:
           SQLX_OFFLINE: true
 
-      - uses: actions-rs/cargo@v1
+      - name: cargo test
+        uses: actions-rs/cargo@v1
         with:
           command: test
         env:
           SQLX_OFFLINE: true
 
-      - name: clippy
+      - name: Run clippy
         uses: actions-rs/clippy-check@v1
         if: always()
         with:
