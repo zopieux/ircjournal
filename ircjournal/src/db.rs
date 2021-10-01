@@ -17,15 +17,14 @@ pub async fn last_message_ts(db: &Database, sc: &ServerChannel) -> Option<Dateti
     // language=sql
     sqlx::query!(
         r#"
-        SELECT timestamp AS "timestamp!" FROM message WHERE channel = $1
-        ORDER BY timestamp DESC, id DESC LIMIT 1
+        SELECT max("timestamp") "timestamp" FROM "message" WHERE "channel" = $1
     "#,
         sc.to_string()
     )
-    .fetch_optional(db)
+    .fetch_one(db)
     .await
     .unwrap()
-    .map(|r| r.timestamp)
+    .timestamp
 }
 
 pub async fn batch_insert_messages(db: &Database, messages: &[NewMessage]) -> Option<u64> {
@@ -53,7 +52,7 @@ pub async fn batch_insert_messages(db: &Database, messages: &[NewMessage]) -> Op
     // language=sql
     sqlx::query(
         r#"
-        INSERT INTO message (channel, nick, line, opcode, oper_nick, payload, timestamp)
+        INSERT INTO message ("channel", "nick", "line", "opcode", "oper_nick", "payload", "timestamp")
         SELECT * FROM UNNEST($1, $2, $3, $4, $5, $6, $7)
     "#,
     )

@@ -1,7 +1,41 @@
 {
   "db": "PostgreSQL",
-  "14aad8fcb2f9d24dd78f4fee7e88e4b07f06dfe0df9575bdeeda167c182a445c": {
-    "query": "\n        SELECT DISTINCT EXTRACT(DAY FROM timestamp) AS \"day!\"\n        FROM message\n        WHERE channel = $1 AND (opcode IS NULL OR opcode = 'me')\n        AND timestamp >= $2 AND timestamp < $3\n        ",
+  "110b3f2c068b321832bfce7877da1a5c61f35eb45cca58b8ee0dc7f24bb7cd20": {
+    "query": "\n        SELECT max(\"timestamp\") \"timestamp\" FROM \"message\" WHERE \"channel\" = $1\n    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "timestamp",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        null
+      ]
+    },
+    "hash": "110b3f2c068b321832bfce7877da1a5c61f35eb45cca58b8ee0dc7f24bb7cd20"
+  },
+  "30a701311c632fa7d9ed3f71cee2c712aaf2cf780b54345eb6eca83d0d3839f9": {
+    "query": "SELECT FROM \"message\" WHERE \"channel\" = $1 LIMIT 1",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": []
+    },
+    "hash": "30a701311c632fa7d9ed3f71cee2c712aaf2cf780b54345eb6eca83d0d3839f9"
+  },
+  "71ec0d36a295fefcf658667274cad526a1f60ea546137da5bde1627e79eb7b2c": {
+    "query": "\n        SELECT DISTINCT EXTRACT(DAY FROM \"timestamp\") \"day!\"\n        FROM \"message\"\n        WHERE \"channel\" = $1 AND (\"opcode\" IS NULL OR \"opcode\" = 'me')\n        AND \"timestamp\" >= $2 AND \"timestamp\" < $3\n        ",
     "describe": {
       "columns": [
         {
@@ -20,42 +54,108 @@
       "nullable": [
         null
       ]
-    }
+    },
+    "hash": "71ec0d36a295fefcf658667274cad526a1f60ea546137da5bde1627e79eb7b2c"
   },
-  "53c167bcc0952912de485d569c71211ff187639a59d4c764388e90ea3ec8d7db": {
-    "query": "\n        SELECT timestamp AS \"timestamp!\" FROM message WHERE channel = $1\n        ORDER BY timestamp DESC, id DESC LIMIT 1\n    ",
+  "8f971cc0fff34f50fe0128db92b089d60eb11d9307f155c79fba49be9d1682cf": {
+    "query": "\n        WITH \"query\" AS (\n            SELECT row(\"message\".*) \"message!:Message\",\n                   ts_headline('english', \"line\", plainto_tsquery('english', $2), U&'StartSel=\\E000, StopSel=\\E001') \"headline!\"\n            FROM \"message\"\n            WHERE \"channel\" || '' = $1\n              AND coalesce(\"opcode\", '') = ''\n              AND CASE WHEN $2 = '' THEN TRUE ELSE to_tsvector('english', \"nick\" || ' ' || \"line\") @@ plainto_tsquery('english', $2) END\n              AND CASE WHEN $5 = '' THEN TRUE ELSE \"nick\" LIKE $5 END\n        )\n        SELECT *, COUNT(*) OVER () \"total!\"\n        FROM \"query\" t LIMIT $3 OFFSET $4\n",
     "describe": {
       "columns": [
         {
           "ordinal": 0,
-          "name": "timestamp!",
-          "type_info": "Timestamptz"
+          "name": "message!:Message",
+          "type_info": "Record"
+        },
+        {
+          "ordinal": 1,
+          "name": "headline!",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "total!",
+          "type_info": "Int8"
         }
       ],
       "parameters": {
         "Left": [
+          "Text",
+          "Text",
+          "Int8",
+          "Int8",
           "Text"
         ]
       },
       "nullable": [
-        false
+        null,
+        null,
+        null
       ]
-    }
+    },
+    "hash": "8f971cc0fff34f50fe0128db92b089d60eb11d9307f155c79fba49be9d1682cf"
   },
-  "568d4811caeb8cce1b41a0be3afca7b938482a0c035523070a860c35af809042": {
-    "query": "SELECT FROM message WHERE channel = $1 LIMIT 1",
+  "b129c80562d66cacc7346ec228afe395bafed773f6594528107b63e8abf29bbc": {
+    "query": "SELECT \"channel\" FROM all_channels()",
     "describe": {
-      "columns": [],
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "channel",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        null
+      ]
+    },
+    "hash": "b129c80562d66cacc7346ec228afe395bafed773f6594528107b63e8abf29bbc"
+  },
+  "b7e1d8bfea3f36ffadbd4a71024e692fa48a11290b313a19b8224638bb269405": {
+    "query": "\n        WITH \"ts\" AS (SELECT min(\"timestamp\") \"first!\", max(\"timestamp\") \"last!\" FROM \"message\" WHERE \"channel\" = $1)\n        SELECT \"first!\", \"last!\", array(SELECT \"nick\" FROM all_nicks($1, $2)) \"nicks!\",\n               (SELECT row(\"message\".*) FROM \"message\"\n                WHERE \"channel\" = $1 AND \"opcode\" = 'topic' AND coalesce(\"payload\", '') != '' AND \"timestamp\" < $3\n                ORDER BY \"timestamp\" DESC LIMIT 1) \"topic?:Message\"\n        FROM \"ts\" GROUP BY 1, 2, 3 LIMIT 1\n    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "first!",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 1,
+          "name": "last!",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 2,
+          "name": "nicks!",
+          "type_info": "TextArray"
+        },
+        {
+          "ordinal": 3,
+          "name": "topic?:Message",
+          "type_info": "Record"
+        }
+      ],
       "parameters": {
         "Left": [
-          "Text"
+          "Text",
+          "Numeric",
+          "Timestamptz"
         ]
       },
-      "nullable": []
-    }
+      "nullable": [
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "hash": "b7e1d8bfea3f36ffadbd4a71024e692fa48a11290b313a19b8224638bb269405"
   },
-  "63f25710b2e80c7a66c0588dc903682d790a0d6de7f39a25c367d07fe7408e49": {
-    "query": "\n        SELECT * FROM message\n        WHERE channel = $1 AND timestamp >= $2 AND timestamp < $3\n        ORDER BY timestamp\n        LIMIT $4\n    ",
+  "e8eb7e07555d7abb03d488e6ef76ee395896e7137bc6f2257a8521c536c0ad7e": {
+    "query": "\n        SELECT * FROM \"message\"\n        WHERE \"channel\" = $1 AND \"timestamp\" >= $2 AND \"timestamp\" < $3\n        ORDER BY \"timestamp\"\n        LIMIT $4\n    ",
     "describe": {
       "columns": [
         {
@@ -117,100 +217,7 @@
         true,
         false
       ]
-    }
-  },
-  "686fb4119e1a4ad1e6f3726683323a8c71f8da7636f2c7686b2b8a47e88fbd9e": {
-    "query": "\n        WITH \"query\" AS (\n            SELECT row(message.*) AS \"message!:Message\",\n                   ts_headline('english', \"line\", plainto_tsquery('english', $2), U&'StartSel=\\E000, StopSel=\\E001') AS \"headline!\"\n            FROM \"message\"\n            WHERE \"channel\" || '' = $1\n              AND coalesce(\"opcode\", '') = ''\n              AND CASE WHEN $2 = '' THEN TRUE ELSE to_tsvector('english', \"nick\" || ' ' || \"line\") @@ plainto_tsquery('english', $2) END\n              AND CASE WHEN $5 = '' THEN TRUE ELSE \"nick\" LIKE $5 END\n        )\n        SELECT *, COUNT(*) OVER () \"total!\"\n        FROM \"query\" t LIMIT $3 OFFSET $4\n",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "message!:Message",
-          "type_info": "Record"
-        },
-        {
-          "ordinal": 1,
-          "name": "headline!",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 2,
-          "name": "total!",
-          "type_info": "Int8"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text",
-          "Int8",
-          "Int8",
-          "Text"
-        ]
-      },
-      "nullable": [
-        null,
-        null,
-        null
-      ]
-    }
-  },
-  "ac1c7bbf82065e4e3745a1777df7a2fb5ede7ba15f2dbd9a4039a32b4f48f304": {
-    "query": "SELECT DISTINCT channel FROM message ORDER BY channel",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "channel",
-          "type_info": "Text"
-        }
-      ],
-      "parameters": {
-        "Left": []
-      },
-      "nullable": [
-        true
-      ]
-    }
-  },
-  "c05a7f8f67b2703e3ad3631fb674a16c8fceaf6082efba797d2af333aa918b29": {
-    "query": "\n        WITH ts AS (SELECT min(timestamp) \"first!\", max(timestamp) \"last!\" FROM message WHERE channel = $1),\n             nicks AS (SELECT DISTINCT nick FROM message WHERE channel = $1 AND coalesce(nick, '') != '' LIMIT $2)\n        SELECT \"first!\", \"last!\", array_agg(nick) \"nicks!\",\n               (SELECT row(message.*) FROM message\n                WHERE channel = $1 AND opcode = 'topic' AND coalesce(payload, '') != '' AND timestamp < $3\n                ORDER BY timestamp DESC LIMIT 1) \"topic?:Message\"\n        FROM ts, nicks GROUP BY 1, 2 LIMIT 1\n    ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "first!",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 1,
-          "name": "last!",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 2,
-          "name": "nicks!",
-          "type_info": "TextArray"
-        },
-        {
-          "ordinal": 3,
-          "name": "topic?:Message",
-          "type_info": "Record"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Int8",
-          "Timestamptz"
-        ]
-      },
-      "nullable": [
-        null,
-        null,
-        null,
-        null
-      ]
-    }
+    },
+    "hash": "e8eb7e07555d7abb03d488e6ef76ee395896e7137bc6f2257a8521c536c0ad7e"
   }
 }

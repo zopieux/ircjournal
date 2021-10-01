@@ -21,7 +21,7 @@ pub(crate) struct Paginated<U> {
 
 pub(crate) async fn channels(db: &Database) -> Vec<ServerChannel> {
     // language=sql
-    sqlx::query!("SELECT DISTINCT channel FROM message ORDER BY channel")
+    sqlx::query!(r#"SELECT "channel" FROM all_channels()"#)
         .fetch_all(db)
         .await
         .unwrap_or_default()
@@ -33,7 +33,7 @@ pub(crate) async fn channels(db: &Database) -> Vec<ServerChannel> {
 pub(crate) async fn channel_exists(db: &Database, sc: &ServerChannel) -> bool {
     // language=sql
     sqlx::query!(
-        "SELECT FROM message WHERE channel = $1 LIMIT 1",
+        r#"SELECT FROM "message" WHERE "channel" = $1 LIMIT 1"#,
         sc.to_string()
     )
     .fetch_optional(db)
@@ -50,13 +50,12 @@ pub(crate) async fn channel_info(
     let channel = sc.to_string();
     // language=sql
     sqlx::query!(r#"
-        WITH ts AS (SELECT min(timestamp) "first!", max(timestamp) "last!" FROM message WHERE channel = $1),
-             nicks AS (SELECT DISTINCT nick FROM message WHERE channel = $1 AND coalesce(nick, '') != '' LIMIT $2)
-        SELECT "first!", "last!", array_agg(nick) "nicks!",
-               (SELECT row(message.*) FROM message
-                WHERE channel = $1 AND opcode = 'topic' AND coalesce(payload, '') != '' AND timestamp < $3
-                ORDER BY timestamp DESC LIMIT 1) "topic?:Message"
-        FROM ts, nicks GROUP BY 1, 2 LIMIT 1
+        WITH "ts" AS (SELECT min("timestamp") "first!", max("timestamp") "last!" FROM "message" WHERE "channel" = $1)
+        SELECT "first!", "last!", array(SELECT "nick" FROM all_nicks($1, $2)) "nicks!",
+               (SELECT row("message".*) FROM "message"
+                WHERE "channel" = $1 AND "opcode" = 'topic' AND coalesce("payload", '') != '' AND "timestamp" < $3
+                ORDER BY "timestamp" DESC LIMIT 1) "topic?:Message"
+        FROM "ts" GROUP BY 1, 2, 3 LIMIT 1
     "#, &channel, HARD_NICK_LIMIT as i64, before.succ().midnight())
         .fetch_optional(db)
         .await
@@ -79,9 +78,9 @@ pub(crate) async fn messages_channel_day(
     sqlx::query_as!(
         Message,
         r#"
-        SELECT * FROM message
-        WHERE channel = $1 AND timestamp >= $2 AND timestamp < $3
-        ORDER BY timestamp
+        SELECT * FROM "message"
+        WHERE "channel" = $1 AND "timestamp" >= $2 AND "timestamp" < $3
+        ORDER BY "timestamp"
         LIMIT $4
     "#,
         sc.to_string(),
@@ -105,10 +104,10 @@ pub(crate) async fn channel_month_index(
     // language=sql
     sqlx::query!(
         r#"
-        SELECT DISTINCT EXTRACT(DAY FROM timestamp) AS "day!"
-        FROM message
-        WHERE channel = $1 AND (opcode IS NULL OR opcode = 'me')
-        AND timestamp >= $2 AND timestamp < $3
+        SELECT DISTINCT EXTRACT(DAY FROM "timestamp") "day!"
+        FROM "message"
+        WHERE "channel" = $1 AND ("opcode" IS NULL OR "opcode" = 'me')
+        AND "timestamp" >= $2 AND "timestamp" < $3
         "#,
         sc.to_string(),
         from.midnight(),
@@ -153,8 +152,8 @@ pub(crate) async fn channel_search(
     // language=sql
     let rows = sqlx::query_as!(Record, r#"
         WITH "query" AS (
-            SELECT row(message.*) AS "message!:Message",
-                   ts_headline('english', "line", plainto_tsquery('english', $2), U&'StartSel=\E000, StopSel=\E001') AS "headline!"
+            SELECT row("message".*) "message!:Message",
+                   ts_headline('english', "line", plainto_tsquery('english', $2), U&'StartSel=\E000, StopSel=\E001') "headline!"
             FROM "message"
             WHERE "channel" || '' = $1
               AND coalesce("opcode", '') = ''
