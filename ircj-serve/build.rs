@@ -25,7 +25,9 @@ fn main() {
 
     ok(Command::new("sass")
         .current_dir(&out)
-        .arg("-tcompact")
+        .arg("--style=compressed")
+        .arg("--no-source-map")
+        .arg("--quiet")
         .arg(stat.join("css/ircjournal.sass"))
         .arg(out.join("css/ircjournal.css")));
 
