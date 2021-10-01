@@ -1,6 +1,7 @@
 {
   "include": ["static/js/*.ts"],
   "compilerOptions": {
+    "target": "es6",
     "sourceMap": true
   }
 }

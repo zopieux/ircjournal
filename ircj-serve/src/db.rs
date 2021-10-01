@@ -140,8 +140,15 @@ pub(crate) async fn channel_search(
             mat.as_str()[5..].replace('*', "%"),
         )
     } else {
-        (query.to_string(), "".to_string())
+        (query.trim().to_string(), "".to_string())
     };
+    if query.is_empty() && nick_filter.is_empty() {
+        return Paginated {
+            page_count: 0,
+            records: vec![],
+            total: 0,
+        };
+    }
     let per_page = SEARCH_PAGE_SIZE as i64;
     let offset = (page - 1) * per_page;
     struct Record {

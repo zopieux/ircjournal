@@ -1,22 +1,38 @@
 const RECONNECT_INTERVAL = 5_000
 
 function scrollToCentered(elem: HTMLElement) {
-    elem.scrollIntoView({ block: "center" })
+    elem.scrollIntoView({block: "center"})
+}
+
+function parseHash(): [string, string] {
+    const [selection, filter] = decodeURIComponent(window.location.hash.substring(1)).split(";")
+    return [selection || "", filter || ""]
 }
 
 function firstSelectionTarget(): string | null {
-    const current = window.location.hash.substring(1).split(";")
-    const [selection ] = current
+    const [selection, filter] = parseHash()
     if (selection == null || selection === "") return null
     const range = selection.split("-")
     return range[0]
 }
 
-function setHash(selection: string, filter: string) {
-    let [currSelection, currFilter] = window.location.hash.substring(1).split(";")
-    if (selection != null) currSelection = selection
-    if (filter != null) currFilter = filter
+function setHash(selection: string | null, filter: string | null) {
+    let [currSelection, currFilter] = parseHash()
+    if (selection !== null) currSelection = selection
+    if (filter !== null) currFilter = filter
     window.location.hash = `#${currSelection || ""};${currFilter || ""}`
+}
+
+function localFilter(messages: HTMLTableElement, filter: string) {
+    if (filter.length) {
+        const re = new RegExp(filter, "i")
+        Array.from(messages.querySelectorAll(".msg"))
+            .map(m => [m, re.test(m.textContent)] as [HTMLElement, boolean])
+            .forEach(([m, matches]) => m.classList.toggle("hide", !matches))
+    } else {
+        Array.from(messages.querySelectorAll(".msg.hide"))
+            .forEach(m => m.classList.remove("hide"))
+    }
 }
 
 const localBool: (name: string) => [() => null | boolean, (val: boolean) => void] = (name) => [
@@ -40,9 +56,10 @@ const localCheckbox = (id: string, cb: (checked: boolean) => void, exec: boolean
 }
 
 function app() {
-    const messageTable = document.querySelector(".messages") as HTMLElement
+    const messageTable = document.querySelector(".messages") as HTMLTableElement
     const bottomMark = document.getElementById("bottom")
     const clearSelectionButton = document.getElementById("clear-selection") as HTMLButtonElement
+    const filterInput = document.getElementById("filter") as HTMLInputElement
 
     function findByIdOrTimestamp(idOrTs: string): [HTMLElement, string] {
         const byId = document.getElementById(idOrTs)
@@ -90,7 +107,7 @@ function app() {
 
     function timestampClicked(e: Event, multiSelect: boolean) {
         e.preventDefault()
-        const msg = (e.target as HTMLElement).parentElement.parentElement.parentElement
+        const msg = (e.target as HTMLElement).parentElement.parentElement
 
         if (multiSelect) {
             const toTs = msg.dataset.timestamp
@@ -103,9 +120,8 @@ function app() {
         }
     }
 
-    function onHashChange() {
-        const current = window.location.hash.substring(1).split(";")
-        const [selection] = current
+    function onHashChange(updateInput: boolean) {
+        const [selection, filter] = parseHash()
         if (selection != null) {
             if (selection === "") {
                 clearSelection()
@@ -119,6 +135,10 @@ function app() {
                 }
             }
         }
+        if (updateInput) {
+            filterInput.value = filter
+        }
+        localFilter(messageTable, filter)
     }
 
     function instrument(message: HTMLElement) {
@@ -132,10 +152,23 @@ function app() {
     document.addEventListener("keyup", (e) => {
         if (e.key === "Shift") shiftPressed = false
     })
-    window.addEventListener("hashchange", () => onHashChange())
+    window.addEventListener("hashchange", () => onHashChange(false))
+
+    let filterInputDebounce = null
+    let doFilter = (e) => {
+        console.log("wut???", filterInput.value)
+        e.preventDefault()
+        e.stopPropagation()
+        clearTimeout(filterInputDebounce)
+        filterInputDebounce = setTimeout(() => setHash(null, filterInput.value), 300)
+    }
+    filterInput.addEventListener("input", e => doFilter(e))
+    // Turns out the "clear" button triggers a "search" event.
+    filterInput.addEventListener("search", e => doFilter(e))
+
     messageTable.querySelectorAll("a.tslink[href^='#']").forEach(instrument)
 
-    onHashChange()
+    onHashChange(true)
 
     const sel = firstSelectionTarget()
     if (sel) {
@@ -155,13 +188,18 @@ function app() {
     }
 
     let liveStream: EventSource = null
-    const startLiveUpdates = () => {
+    function startLiveUpdates() {
         const url = (messageTable.dataset as { stream: string }).stream
         liveStream = new EventSource(url, {withCredentials: true})
         liveStream.onerror = () => {
+            // Some browsers have their own reconnection loop. Without closes(), they would
+            // race with our own retry, with exponential invocation growth.
+            liveStream.close()
             liveStream = null
-            console.warn("disconnected from live updates:")
-            setTimeout(startLiveUpdates, RECONNECT_INTERVAL)
+            console.warn("disconnected from live updates")
+            if (liveCheckbox.checked) {
+                setTimeout(() => startLiveUpdates(), RECONNECT_INTERVAL)
+            }
         }
         liveStream.onmessage = (m) => {
             if (m.type === "message" && !!m.data) {
@@ -178,7 +216,7 @@ function app() {
         messageTable.classList.toggle("hide-join-part", !checked)
     }, true)
 
-    localCheckbox("live", checked => {
+    const liveCheckbox = localCheckbox("live", checked => {
         autoScroll.disabled = !checked
         if (checked) {
             startLiveUpdates()

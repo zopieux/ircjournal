@@ -31,7 +31,6 @@ h2.brand
   margin: 0
   padding: 0
   font: inherit
-  font-size: 1rem
   color: $muted
 
 aside
@@ -46,6 +45,9 @@ aside
   display: flex
   flex-direction: column
   gap: $pad
+
+  p
+    word-break: break-word
 
 .check-group
   display: flex
@@ -76,6 +78,7 @@ form.search
     padding: $pad/4 $pad/4
 
 main
+  max-width: 100%
   flex: 1
 
   p
@@ -167,6 +170,9 @@ tbody.search-date
     // Non-chat.
     tr.msg:not([data-oper=""]):not([data-oper="me"])
       display: none
+
+  .hide
+    display: none
 
   tr
     line-height: initial
@@ -261,6 +267,12 @@ blockquote.last-topic
     font-weight: $light
     padding: 0
     margin: $pad/2 0 0
+
+.pages
+  padding: $pad/2 0
+  display: grid
+  grid-template-columns: repeat(auto-fill, minmax(4ch, 1fr))
+  justify-items: flex-end
 
 @for $i from 0 through 16
   .nick-#{$i}

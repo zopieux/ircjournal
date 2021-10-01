@@ -75,6 +75,9 @@ pub(crate) fn home(channels: &[ServerChannel]) -> Markup {
     base(
         "Channel list",
         html! {
+            @if channels.is_empty() {
+                p { em { "No channel. Ingest some logs!" } }
+            }
             ul.chanlist {
                 @for sc in channels {
                     li {
@@ -150,6 +153,9 @@ pub(crate) fn channel(
                     "Auto-scroll"
                 }
             }
+            form.search {
+                input#filter type="search" placeholder="Search this day";
+            }
             (clear_selection_button())
         },
         html! {
@@ -189,15 +195,14 @@ pub(crate) fn search(
         .map(|p| {
             html! {
                 @if p as u64 == page {
-                    (p)
+                    strong { (p) }
                 } @else {
-                    a href=(uri!(route::channel_search(sc, query, Some(p as u64)))) { (p) }
+                    a href=(uri!(route::channel_search(sc, query, Some(p as u64)))) title=(format!("Page {}", p)) { (p) }
                 }
             }
         })
-        .intersperse(html! { " " })
         .collect();
-    let pages = html! { @for p in pages { (p) } };
+    let pages = html! { @if pages.len() > 1 { div.pages { @for p in pages { (p) } } } };
     base(
         &sc.to_string(),
         html! {
@@ -210,10 +215,8 @@ pub(crate) fn search(
                 @if result_count == 0 {
                     "No message found."
                 } @else {
-                    "Found " (result_count) " results. "
-                    @if page_count > 1 {
-                        "Pages: " (pages)
-                    }
+                    "Found " strong { (result_count) } " lines. "
+                    (pages)
                 }
             }
             table.messages {
@@ -222,11 +225,7 @@ pub(crate) fn search(
                     @for msg in &per_day.1 { (message(msg, sc, &info.nicks, LinkType::Absolute)) }
                 }
             }
-            div {
-                @if page_count > 1 {
-                    "Pages: " (pages)
-                }
-            }
+            (pages)
         },
     )
 }
@@ -280,7 +279,7 @@ fn clean(line: &str) -> String {
 fn search_form(sc: &ServerChannel, query: &str) -> Markup {
     html! {
         form.search action=(uri!(route::channel_search(sc, "", None as Option<u64>))) method="get" {
-            input name="query" value=(query) placeholder="Search this channel";
+            input type="search" name="query" value=(query) placeholder="Search this channel";
             button type="submit" { "Search" }
         }
     }
