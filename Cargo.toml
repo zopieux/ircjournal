@@ -4,19 +4,3 @@ members = [
     "ircj-serve",
     "ircj-watch",
 ]
-exclude = ["smoltest"]
-
-#[package]
-#name = "ircjournal"
-#version = "0.1.0"
-#authors = ["Alexandre Macabies <web+oss@zopieux.com>"]
-#edition = "2018"
-#
-#[[bin]]
-#name = "serve"
-#path = "src/serve/main.rs"
-#
-#[[bin]]
-#name = "watch"
-#path = "src/watch/main.rs"
-#

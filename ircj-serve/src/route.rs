@@ -114,9 +114,11 @@ async fn channel_search(
 }
 
 #[derive(rust_embed::RustEmbed)]
-#[folder = "static/"]
-#[exclude = "**/*.sass"]
-#[exclude = "**/*.ts"]
+#[folder = "$OUT_DIR/static/"]
+#[prefix = ""]
+#[include = "**/*.js"]
+#[include = "**/*.css"]
+#[include = "**/*.png"]
 struct StaticAsset;
 
 #[derive(Clone)]
@@ -200,7 +202,7 @@ impl rocket::route::Handler for StaticFiles {
 
 impl From<StaticFiles> for Vec<rocket::Route> {
     fn from(sf: StaticFiles) -> Self {
-        let mut route = rocket::Route::ranked(100, rocket::http::Method::Get, "/<path..>", sf);
+        let mut route = rocket::Route::ranked(30, rocket::http::Method::Get, "/<path..>", sf);
         route.name = Some("StaticFiles".into());
         vec![route]
     }
