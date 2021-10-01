@@ -8,15 +8,27 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Setup TypeScript compiler
+        run: yarn global add typescript@next
+
+      - name: Setup dart-sass
+        env:
+          DART_VERSION: 1.42.1
+        run: |
+          wget "https://github.com/sass/dart-sass/releases/download/${DART_VERSION}/dart-sass-${DART_VERSION}-linux-x64.tar.gz" -O dart.tar.gz
+          tar xzf dart.tar.gz dart-sass/sass
+          echo "$(realpath ./dart-sass)" >> $GITHUB_PATH
+
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          components: clippy
           override: true
 
       - uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --all-targets
+          args: --all-targets
         env:
           SQLX_OFFLINE: true
 
@@ -26,21 +38,9 @@ jobs:
         env:
           SQLX_OFFLINE: true
 
-  check-rust:
-    name: "check rust code"
-    runs-on: ubuntu-latest
-    if: "contains(github.event.head_commit.message, '[rust]')"
-    steps:
-      - uses: actions/checkout@v2
-
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          components: clippy
-          override: true
-
       - name: clippy
         uses: actions-rs/clippy-check@v1
+        if: always()
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -50,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install modules
+      - name: Install dependencies
         run: cd ircj-serve && yarn
 
       - name: Run ESLint
