@@ -1,5 +1,5 @@
 use rocket::fairing::AdHoc;
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 use tokio::sync::broadcast;
 
 use ircjournal::{
@@ -7,11 +7,10 @@ use ircjournal::{
     Database, MessageEvent,
 };
 
-use crate::view;
-
 const CAPACITY: usize = 1024;
+const AWAKE_LISTEN_INTERVAL: Duration = Duration::from_secs(60);
 
-pub fn save_broadcast_task(
+pub fn broadcast_message_task(
     db: Database,
     broadcast: broadcast::Sender<MessageEvent>,
     mut shutdown: rocket::Shutdown,
@@ -21,13 +20,16 @@ pub fn save_broadcast_task(
             .await
             .expect("listener");
         listener.listen("new_message").await.expect("listen");
+        let mut wakeup = tokio::time::interval(AWAKE_LISTEN_INTERVAL);
         loop {
             tokio::select! {
                 _ = &mut shutdown => break,
+                 // Ensures we call recv() from time to time, to resist the connection going away under our feet.
+                _ = wakeup.tick() => continue,
                 Ok(notification) = listener.recv() => {
                     if let Ok(message) = serde_json::from_str::<Message>(notification.payload()) {
                         let sc = ServerChannel::from_str(message.channel.as_ref().unwrap()).unwrap();
-                        let _ = broadcast.send((sc.clone(), view::formatted_message(&message)));
+                        let _ = broadcast.send((sc.clone(), crate::view::formatted_message(&message)));
                         debug!("New message for {:?}, id {}", &sc, message.id);
                     }
                 },
@@ -45,9 +47,9 @@ pub fn fairing() -> AdHoc {
 }
 
 fn watch_fairing() -> AdHoc {
-    AdHoc::on_liftoff("Save and broadcast new lines", |rocket| {
+    AdHoc::on_liftoff("Broadcast live new lines", |rocket| {
         Box::pin(async move {
-            save_broadcast_task(
+            broadcast_message_task(
                 rocket
                     .state::<Database>()
                     .unwrap() // attached above
