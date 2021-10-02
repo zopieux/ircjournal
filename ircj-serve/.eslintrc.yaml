@@ -15,6 +15,19 @@ extends:
 
 rules:
   quotes: [error, double]
+  capitalized-comments:
+    - warn
+    - always
+    - ignoreConsecutiveComments: true
+  "@typescript-eslint/naming-convention":
+    - error
+    - selector: default
+      format: ['strictCamelCase']
+    - selector: ['variable']
+      modifiers: ['global']
+      types: ['boolean', 'string', 'number', 'array']
+      format: ['StrictPascalCase']
+      prefix: ['k']
   "@typescript-eslint/no-unnecessary-type-assertion":
     - error
     - typesToIgnore: [HTMLElement]

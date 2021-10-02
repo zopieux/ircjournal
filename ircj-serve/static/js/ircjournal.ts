@@ -1,4 +1,9 @@
-const RECONNECT_INTERVAL = 5_000
+const kReconnectInterval = 5_000
+const kFlashLiveUpdates = true
+
+const kHighlightClass = "highlight"
+const kHideClass = "hide"
+const kHideJoinPartClass = "hide-join-part"
 
 function scrollToCentered(elem: HTMLElement) {
     elem.scrollIntoView({block: "center"})
@@ -10,8 +15,8 @@ function parseHash(): [string, string] {
 }
 
 function firstSelectionTarget(): string | null {
-    const [selection, filter] = parseHash()
-    if (selection == null || selection === "") return null
+    const [selection] = parseHash()
+    if (selection === "") return null
     const range = selection.split("-")
     return range[0]
 }
@@ -23,24 +28,14 @@ function setHash(selection: string | null, filter: string | null) {
     window.location.hash = `#${currSelection || ""};${currFilter || ""}`
 }
 
-function localFilter(messages: HTMLTableElement, filter: string) {
-    if (filter.length) {
-        const re = new RegExp(filter, "i")
-        Array.from(messages.querySelectorAll(".msg"))
-            .map(m => [m, re.test(m.textContent)] as [HTMLElement, boolean])
-            .forEach(([m, matches]) => m.classList.toggle("hide", !matches))
-    } else {
-        Array.from(messages.querySelectorAll(".msg.hide"))
-            .forEach(m => m.classList.remove("hide"))
-    }
+function localBool(name: string): [() => null | boolean, (val: boolean) => void] {
+    return [
+        () => ({"null": null, "true": true, "false": false}["" + window.localStorage.getItem(name)]),
+        (val) => window.localStorage.setItem(name, val ? "true" : "false"),
+    ]
 }
 
-const localBool: (name: string) => [() => null | boolean, (val: boolean) => void] = (name) => [
-    () => ({"null": null, "true": true, "false": false}["" + window.localStorage.getItem(name)]),
-    (val) => window.localStorage.setItem(name, val ? "true" : "false"),
-]
-
-const localCheckbox = (id: string, cb: (checked: boolean) => void, exec: boolean) => {
+function localCheckbox(id: string, cb: (checked: boolean) => void, exec: boolean) {
     const [get, set] = localBool(id)
     const el = document.getElementById(id) as HTMLInputElement
     const curr = get()
@@ -55,11 +50,38 @@ const localCheckbox = (id: string, cb: (checked: boolean) => void, exec: boolean
     return el
 }
 
+function flashElem(el: HTMLElement, duration: number, steps: number) {
+    if (!kFlashLiveUpdates) return
+    let t = steps * duration
+    function flash() {
+        el.style.backgroundColor = `rgba(218, 199, 129, ${t / (steps * duration)})`
+        t -= steps
+        if (t > 0) window.requestAnimationFrame(flash)
+        else el.style.backgroundColor = "transparent"
+    }
+    window.requestAnimationFrame(flash)
+}
+
 function app() {
-    const messageTable = document.querySelector(".messages") as HTMLTableElement
+    const messageTable = document.querySelector(".messages") as HTMLElement
     const bottomMark = document.getElementById("bottom")
     const clearSelectionButton = document.getElementById("clear-selection") as HTMLButtonElement
     const filterInput = document.getElementById("filter") as HTMLInputElement
+
+    let shiftPressed = false
+    let filterInputDebounce = null
+
+    function localLineFilter(filter: string) {
+        if (filter.length) {
+            const re = new RegExp(filter, "i")
+            Array.from(messageTable.querySelectorAll(".msg"))
+                .map(m => [m, re.test(m.textContent)] as [HTMLElement, boolean])
+                .forEach(([m, matches]) => m.classList.toggle(kHideClass, !matches))
+        } else {
+            Array.from(messageTable.querySelectorAll(".msg.hide"))
+                .forEach(m => m.classList.remove(kHideClass))
+        }
+    }
 
     function findByIdOrTimestamp(idOrTs: string): [HTMLElement, string] {
         const byId = document.getElementById(idOrTs)
@@ -76,7 +98,7 @@ function app() {
         } else {
             elem = messageTable.querySelector(`[data-timestamp="${idOrTs}"]`)
         }
-        if (elem) elem.classList.add("highlight")
+        if (elem) elem.classList.add(kHighlightClass)
         return elem
     }
 
@@ -87,22 +109,22 @@ function app() {
             const ts = parseInt(e.dataset.timestamp, 10)
             if (first <= ts && ts <= last) {
                 if (!elem) elem = e
-                e.classList.add("highlight")
+                e.classList.add(kHighlightClass)
             }
         })
         return elem
     }
 
     function prepareSelection() {
-        messageTable.classList.add("highlight")
+        messageTable.classList.add(kHighlightClass)
         clearSelectionButton.disabled = false
-        messageTable.querySelectorAll(".msg.highlight").forEach(e => e.classList.remove("highlight"))
+        messageTable.querySelectorAll(".msg.highlight").forEach(e => e.classList.remove(kHighlightClass))
     }
 
     function clearSelection() {
-        messageTable.classList.remove("highlight")
+        messageTable.classList.remove(kHighlightClass)
         clearSelectionButton.disabled = true
-        messageTable.querySelectorAll(".msg.highlight").forEach(e => e.classList.remove("highlight"))
+        messageTable.querySelectorAll(".msg.highlight").forEach(e => e.classList.remove(kHighlightClass))
     }
 
     function timestampClicked(e: Event, multiSelect: boolean) {
@@ -138,14 +160,13 @@ function app() {
         if (updateInput) {
             filterInput.value = filter
         }
-        localFilter(messageTable, filter)
+        localLineFilter(filter)
     }
 
-    function instrument(message: HTMLElement) {
+    function instrumentForTsClick(message: HTMLElement) {
         message.addEventListener("click", e => timestampClicked(e, shiftPressed))
     }
 
-    let shiftPressed = false
     document.addEventListener("keydown", (e) => {
         if (e.key === "Shift") shiftPressed = true
     })
@@ -154,19 +175,16 @@ function app() {
     })
     window.addEventListener("hashchange", () => onHashChange(false))
 
-    let filterInputDebounce = null
-    let doFilter = (e) => {
-        console.log("wut???", filterInput.value)
+    const doFilter = (e: Event) => {
         e.preventDefault()
         e.stopPropagation()
         clearTimeout(filterInputDebounce)
         filterInputDebounce = setTimeout(() => setHash(null, filterInput.value), 300)
     }
     filterInput.addEventListener("input", e => doFilter(e))
-    // Turns out the "clear" button triggers a "search" event.
     filterInput.addEventListener("search", e => doFilter(e))
 
-    messageTable.querySelectorAll("a.tslink[href^='#']").forEach(instrument)
+    messageTable.querySelectorAll("a.tslink[href^='#']").forEach(instrumentForTsClick)
 
     onHashChange(true)
 
@@ -183,7 +201,7 @@ function app() {
 
     const autoScroll = localCheckbox("auto-scroll", () => maybeScroll(), false)
 
-    const maybeScroll = () => {
+    function maybeScroll() {
         if (autoScroll.checked) bottomMark.scrollIntoView({block: "end"})
     }
 
@@ -192,19 +210,19 @@ function app() {
         const url = (messageTable.dataset as { stream: string }).stream
         liveStream = new EventSource(url, {withCredentials: true})
         liveStream.onerror = () => {
-            // Some browsers have their own reconnection loop. Without closes(), they would
+            // Some browsers have their own reconnection loop. Without close(), they would
             // race with our own retry, with exponential invocation growth.
             liveStream.close()
             liveStream = null
             console.warn("disconnected from live updates")
             if (liveCheckbox.checked) {
-                setTimeout(() => startLiveUpdates(), RECONNECT_INTERVAL)
+                setTimeout(() => startLiveUpdates(), kReconnectInterval)
             }
         }
         liveStream.onmessage = (m) => {
             if (m.type === "message" && !!m.data) {
                 messageTable.insertAdjacentHTML("beforeend", m.data)
-                instrument(messageTable.lastElementChild as HTMLElement)
+                instrumentForTsClick(messageTable.lastElementChild as HTMLElement)
                 maybeScroll()
                 flashElem(messageTable.lastElementChild as HTMLElement, 30, 20)
             }
@@ -213,7 +231,7 @@ function app() {
     }
 
     localCheckbox("show-join-part", checked => {
-        messageTable.classList.toggle("hide-join-part", !checked)
+        messageTable.classList.toggle(kHideJoinPartClass, !checked)
     }, true)
 
     const liveCheckbox = localCheckbox("live", checked => {
@@ -225,17 +243,6 @@ function app() {
             liveStream = null
         }
     }, true)
-}
-
-function flashElem(el: HTMLElement, duration: number, steps: number) {
-    let t = steps * duration
-    const flash = () => {
-        el.style.backgroundColor = `rgba(218, 199, 129, ${t / (steps * duration)})`
-        t -= steps
-        if (t > 0) window.requestAnimationFrame(flash)
-        else el.style.backgroundColor = "transparent"
-    }
-    window.requestAnimationFrame(flash)
 }
 
 (function ready(fn) {
