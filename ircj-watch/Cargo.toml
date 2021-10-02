@@ -12,6 +12,8 @@ log = "0.4"
 env_logger = "0.9"
 # Pin utils.
 pin-project-lite = "0.2"
+# Progress bar.
+indicatif = "0.16"
 # Watch for new logs.
 inotify = "0.9"
 # Configuration.

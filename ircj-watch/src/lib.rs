@@ -1,4 +1,5 @@
 use futures::StreamExt;
+use indicatif::ProgressBar;
 use ircjournal::model::ServerChannel;
 use std::{marker::PhantomData, path::Path};
 use tokio::{
@@ -8,72 +9,84 @@ use tokio::{
 use tokio_stream::wrappers::LinesStream;
 
 use ircjournal::{
-    db::batch_insert_messages, line_to_new_message, seek_past_line, Database, Logger, ParseResult,
+    db::batch_insert_messages, line_to_new_message, seek_past_line, Database, Logger, NewMessage,
+    ParseResult,
 };
 
 fn invalid_input(msg: &str) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::InvalidInput, msg)
 }
 
+pub async fn inserter_task(
+    chunk_size: usize,
+    db: Database,
+    mut message_queue: tokio::sync::mpsc::Receiver<NewMessage>,
+) -> u64 {
+    let mut total = 0u64;
+    let mut batch = Vec::with_capacity(chunk_size);
+    while let Some(message) = message_queue.recv().await {
+        batch.push(message);
+        if (batch.len()) == chunk_size {
+            total += batch_insert_messages(&db, &batch).await.unwrap_or(0);
+            batch.clear();
+        }
+    }
+    total += batch_insert_messages(&db, &batch).await.unwrap_or(0);
+    total
+}
+
 pub async fn backfill<L: Logger>(
     path: &Path,
     db: &Database,
     backfill: bool,
-    chunk_size: usize,
-    concurrency: usize,
-) -> std::io::Result<(ServerChannel, u64, BufReader<File>, PhantomData<L>)> {
+    tx: tokio::sync::mpsc::Sender<NewMessage>,
+    progress: ProgressBar,
+) -> std::io::Result<(ServerChannel, BufReader<File>, PhantomData<L>)> {
     let sc = L::parse_path(path).ok_or_else(|| invalid_input("not a valid filename"))?;
     let f = File::open(path).await?;
     let mut reader = tokio::io::BufReader::new(f);
 
     if !backfill {
         reader.seek(SeekFrom::End(0)).await?;
-        return Ok((sc, 0, reader, PhantomData));
+        return Ok((sc, reader, PhantomData));
     }
 
     // Do we have a last message in the DB already?
+    let mut last_ts = None;
     let sc_ = sc.clone();
     if let Some(ts) = ircjournal::db::last_message_ts(db, &sc_).await {
         // If so, before reading further, seek past it.
-        seek_past_line::<L, _>(&mut reader, &ts).await;
+        last_ts = seek_past_line::<L, _>(&mut reader, &ts)
+            .await
+            .map(|(ts, _)| ts);
     }
+
+    let from_str = match last_ts {
+        None => "from scratch".to_owned(),
+        Some(m) => format!("from {:?}", m),
+    };
+    progress.set_message(from_str.clone());
 
     // Read lines, create batch, insert and return inserted size.
     let mut line_stream = LinesStream::new(reader.lines());
-    let total_inserted = line_stream
+    line_stream
         .by_ref() // This is key: we need to grab the inner BufRead to tell position afterwards.
-        .zip(futures::stream::repeat(sc.clone()))
-        .filter_map(|(line, sc)| async move {
+        .zip(futures::stream::repeat((sc.clone(), tx, progress.clone())))
+        .filter_map(|(line, (sc, tx, p))| async move {
             let line = line.ok()?;
             match L::parse_line(&line) {
-                ParseResult::Ok((ts, line)) => line_to_new_message(line, &sc, ts),
+                ParseResult::Ok((ts, line)) => {
+                    line_to_new_message(line, &sc, ts).map(|nm| (nm, tx, p))
+                }
                 _ => None,
             }
         })
-        .chunks(chunk_size)
-        .map(|messages| async move { batch_insert_messages(db, &messages).await.unwrap_or(0) })
-        .buffered(concurrency)
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .sum();
-    Ok((
-        sc,
-        total_inserted,
-        line_stream.into_inner().into_inner(),
-        PhantomData,
-    ))
+        .for_each(|(message, tx, p)| async move {
+            tx.send(message).await.expect("channel closed");
+            p.inc_length(1);
+            p.inc(1);
+        })
+        .await;
+    progress.finish_with_message(format!("{} (done)", from_str));
+    Ok((sc, line_stream.into_inner().into_inner(), PhantomData))
 }
-
-/*
-pub(crate) async fn insert_message(db: &Database, message: &NewMessage) -> Option<Message> {
-    sqlx::query_as!(Message, r#"
-        INSERT INTO message ("channel", "nick", "line", "opcode", "oper_nick", "payload", "timestamp")
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING "id", "channel", "nick", "line", "opcode", "oper_nick", "payload", "timestamp"
-    "#, message.channel, message.nick, message.line, message.opcode, message.oper_nick, message.payload, message.timestamp)
-        .fetch_one(db)
-        .await
-        .ok()
-}
-*/

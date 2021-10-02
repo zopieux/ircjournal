@@ -1,7 +1,7 @@
 extern crate lazy_static;
 
 use std::path::Path;
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncSeekExt, BufReader, SeekFrom};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncSeekExt, BufReader, SeekFrom};
 
 pub use crate::model::{Datetime, NewMessage, ServerChannel};
 pub type Database = sqlx::postgres::PgPool;
@@ -123,6 +123,33 @@ pub fn line_to_new_message(
     }
 }
 
+async fn find_last_line<L: Logger, F>(
+    line: &mut String,
+    reader: &mut BufReader<F>,
+    end: u64,
+) -> Option<String>
+where
+    F: AsyncRead + AsyncSeekExt + Unpin,
+{
+    let mut offset = 64u64;
+    loop {
+        line.clear();
+        reader.seek(SeekFrom::Start(end - offset)).await.ok()?;
+        match reader.read_to_string(line).await {
+            Ok(0) => return None,
+            Ok(_) => {
+                let lasts: Vec<_> = line[0..line.len() - 1].rsplitn(2, '\n').collect();
+                match lasts.len() {
+                    1 => offset *= 2,
+                    2 => return Some(lasts[0].to_string()),
+                    _ => unreachable!(),
+                };
+            }
+            Err(_) => return None,
+        }
+    }
+}
+
 pub async fn seek_past_line<L: Logger, F>(
     reader: &mut BufReader<F>,
     needle: &Datetime,
@@ -140,7 +167,7 @@ where
         let dated_line = loop {
             line.clear();
             let parsed = match reader.read_line(&mut line).await {
-                Ok(0) => ParseResult::Invalid,
+                Ok(0) => L::parse_line(&find_last_line::<L, F>(&mut line, reader, end).await?),
                 Ok(_) => L::parse_line(&line[0..line.len() - 1]),
                 Err(_) => ParseResult::Invalid,
             };

@@ -1,7 +1,7 @@
 use figment::{providers::Format, Figment};
 use futures::StreamExt;
 use itertools::{Either, Itertools};
-use log::{debug, error, info};
+use log::debug;
 use pin_project_lite::pin_project;
 use std::{collections::HashMap, marker::PhantomData, path::PathBuf, pin::Pin};
 use tokio::{
@@ -10,7 +10,7 @@ use tokio::{
 };
 use tokio_stream::wrappers::LinesStream;
 
-use ircj_watch::backfill;
+use ircj_watch::{backfill, inserter_task};
 use ircjournal::{
     line_to_new_message,
     model::{NewMessage, ServerChannel},
@@ -33,7 +33,7 @@ impl Default for Config {
             paths: vec![],
             backfill: true,
             backfill_batch_size: 5_000,
-            backfill_concurrency: 4,
+            backfill_concurrency: 2,
         }
     }
 }
@@ -56,66 +56,85 @@ async fn main() -> Result<(), figment::Error> {
         ));
 
     // First, backfill.
-    let do_backfill = config.backfill;
+    let prog = indicatif::MultiProgress::new();
+    let sty = indicatif::ProgressStyle::default_bar()
+        .template("{spinner} [{elapsed_precise}] {len:>7} ({per_sec:>6}) {prefix} {wide_msg}");
+
+    let (tx, rx) = tokio::sync::mpsc::channel::<NewMessage>(128);
+
+    let db_for_inserter = pool.clone();
     let batch_size = config.backfill_batch_size;
-    let concurrency = config.backfill_concurrency;
-    let results: Vec<_> = futures::stream::iter(config.paths)
-        .zip(futures::stream::repeat(pool.clone()))
-        .map(|(path, pool)| async move {
-            info!("Attempting to backfill {:?}", &path);
+    let inserter_handle =
+        tokio::spawn(async move { inserter_task(batch_size, db_for_inserter, rx).await });
+
+    let do_backfill = config.backfill;
+    let prepared: Vec<_> = config
+        .paths
+        .iter()
+        .map(|path| {
+            let name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let p = prog.add(
+                indicatif::ProgressBar::new(0)
+                    .with_prefix(name)
+                    .with_style(sty.clone()),
+            );
+            p.tick();
+            (path, p, pool.clone(), tx.clone())
+        })
+        .collect();
+
+    drop(tx);
+
+    let prog_handle = tokio::task::spawn_blocking(move || {
+        prog.join();
+    });
+
+    let results: Vec<_> = futures::stream::iter(prepared)
+        .map(|(path, progress, pool, tx)| async move {
+            // TODO: generify.
             (
                 path.clone(),
-                // TODO: generify.
                 backfill::<ircjournal::weechat::Weechat>(
-                    &path,
+                    path,
                     &pool,
                     do_backfill,
-                    batch_size,
-                    concurrency,
+                    tx,
+                    progress.clone(),
                 )
                 .await,
+                progress,
             )
         })
-        .buffer_unordered(2)
+        .buffer_unordered(config.backfill_concurrency)
         .collect()
         .await;
 
-    // Display some backfill stats.
     let (successes, failures): (Vec<_>, Vec<_>) =
-        results.into_iter().partition_map(|(path, res)| match res {
-            Ok(el) => Either::Left((path, el)),
-            Err(err) => Either::Right((path, err)),
-        });
+        results
+            .into_iter()
+            .partition_map(|(path, res, p)| match res {
+                Ok(el) => Either::Left((path, el)),
+                Err(err) => Either::Right((err, p)),
+            });
 
-    if !successes.is_empty() {
-        info!(
-            "Backfill successful:\n{}",
-            successes
-                .iter()
-                .format_with("\n", |(path, (sc, inserted, _, _)), f| f(&format_args!(
-                    "\tPath {:?}: channel is {}; backfilled {} messages",
-                    path, sc, inserted
-                )))
-        );
-    }
-    if !failures.is_empty() {
-        error!(
-            "Backfill failed:\n{}",
-            failures
-                .iter()
-                .format_with(", ", |(path, err), f| f(&format_args!(
-                    "\tPath {:?}: {:?}",
-                    path, err
-                )))
-        );
-    }
+    failures.into_iter().for_each(|(err, p)| {
+        p.set_message(err.to_string());
+    });
+
+    let (ins, prog) = tokio::join!(inserter_handle, prog_handle);
+    ins.unwrap();
+    prog.unwrap();
 
     // Now watch for changes and save new messages as they come.
     let mut notifier = inotify::Inotify::init().unwrap();
 
     let mut tailer_of_wd: HashMap<_, _> = successes
         .into_iter()
-        .map(|(path, (sc, _, buf_reader, type_mark))| {
+        .map(|(path, (sc, buf_reader, type_mark))| {
             (
                 notifier
                     .add_watch(path, inotify::WatchMask::CLOSE_WRITE)
@@ -125,15 +144,16 @@ async fn main() -> Result<(), figment::Error> {
         })
         .collect();
 
-    let mut notify_stream = notifier.event_stream([0; 32]).unwrap().fuse();
+    let mut notify_stream = notifier.event_stream([0; 32]).expect("event stream").fuse();
 
     loop {
         tokio::select! {
             Some(Ok(event)) = notify_stream.next() => {
+                // A file has changed. Get its associated tailed, read new lines, save them.
                 let tailer = tailer_of_wd.get_mut(&event.wd).unwrap();
                 let sc = tailer.sc.clone();
                 let new_messages = Pin::new(tailer).read_all_new_lines().await;
-                let inserted = ircjournal::db::batch_insert_messages(&pool, &new_messages).await;
+                let inserted = ircjournal::db::batch_insert_messages_and_notify(&pool, &new_messages).await;
                 debug!("Channel {}: inserted {}", &sc, inserted.unwrap_or_default());
             }
         }
