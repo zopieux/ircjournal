@@ -40,18 +40,25 @@ macro_rules! format_some {
     };
 }
 
-fn base<A, C>(title: &str, aside: PreEscaped<A>, content: PreEscaped<C>) -> Markup
+fn base<M, A, C>(
+    title: &str,
+    aside: PreEscaped<A>,
+    content: PreEscaped<C>,
+    meta: PreEscaped<M>,
+) -> Markup
 where
     A: AsRef<str>,
     C: AsRef<str>,
+    M: AsRef<str>,
 {
     html! {
         (DOCTYPE)
         head {
             meta charset="utf-8";
             meta name="viewport" content="width=device-width, initial-scale=1";
-            link rel="icon" type="image/png" href="/static/favicon.png";
             link rel="stylesheet" href="/static/css/ircjournal.css";
+            link rel="icon" type="image/png" href="/static/favicon.png";
+            (meta)
             title {
                 @if !title.is_empty() { (title) " — " }
                 "ircjournal"
@@ -105,6 +112,7 @@ pub(crate) fn home(channels: &[ServerChannel]) -> Markup {
                 a href="https://github.com/zopieux" { "zopieux@" } "."
             }
         },
+        html! {},
     )
 }
 
@@ -181,7 +189,10 @@ pub(crate) fn channel(
             @if truncated { div.warning { "Only displaying the first " (messages.len()) " lines to prevent browser slowness." } }
             (date_sel("bottom", "", "\u{22cf}", "Jump to the top"))
             div#bottom {}
-            script type="text/javascript" src="/static/js/ircjournal.js" {}
+        },
+        html! {
+            link rel="preload" href="/static/js/ircjournal.js" as="script";
+            script type="text/javascript" src="/static/js/ircjournal.js" defer async {}
         },
     )
 }
@@ -231,6 +242,7 @@ pub(crate) fn search(
             }
             (pages)
         },
+        html! {},
     )
 }
 
