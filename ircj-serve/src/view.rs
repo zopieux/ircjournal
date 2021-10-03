@@ -310,7 +310,7 @@ fn format_content(content: &str, nicks: &Nicks) -> Markup {
             lf
         };
     }
-    let markup: Vec<Markup> = LINK_FINDER.spans(content).map(|span| {
+    let markup: Vec<_> = LINK_FINDER.spans(content).map(|span| {
         let s = span.as_str();
         match span.kind() {
             Some(LinkKind::Url) => {

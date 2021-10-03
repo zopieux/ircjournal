@@ -11,7 +11,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            db: "postgresql://ircjournal@localhost/ircjournal".to_owned(),
+            db: "".to_owned(),
         }
     }
 }
@@ -22,7 +22,7 @@ async fn get_rocket() -> rocket::Rocket<rocket::Build> {
 
     let figment = rocket::Config::figment()
         .merge(figment::providers::Serialized::defaults(Config::default()))
-        .merge(figment::providers::Yaml::file("ircj-serve.yaml"))
+        .merge(figment::providers::Toml::file("ircj-serve.toml"))
         .merge(figment::providers::Env::prefixed("IRCJ_"));
 
     rocket::custom(figment)

@@ -44,7 +44,7 @@ async fn main() -> Result<(), figment::Error> {
 
     let config: Config = Figment::new()
         .merge(figment::providers::Serialized::defaults(Config::default()))
-        .merge(figment::providers::Yaml::file("ircj-watch.yml"))
+        .merge(figment::providers::Toml::file("ircj-watch.toml"))
         .merge(figment::providers::Env::prefixed("IRCJ_"))
         .extract()?;
 
