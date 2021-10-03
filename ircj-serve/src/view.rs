@@ -17,8 +17,8 @@ enum LinkType {
     Relative,
 }
 
-fn some_or_empty(s: &Option<String>) -> String {
-    s.as_ref().unwrap_or(&"".to_string()).to_string()
+fn some_or_empty(s: &Option<String>) -> &'_ str {
+    s.as_deref().unwrap_or_default()
 }
 
 fn channel_link(sc: &ServerChannel, day: &Day, content: Markup) -> Markup {
@@ -157,13 +157,13 @@ pub(crate) fn channel(
             (date_sel("", "bottom", "\u{22ce}", "Jump to the bottom"))
             @if let Some(topic) = info.topic.as_ref() {
                 blockquote.last-topic {
-                    (some_or_empty(&topic.payload))
-                    cite { "Set by " (format_nick(topic.nick.as_ref().unwrap())) " on " (message_link(topic, html!{ (topic.timestamp.format("%Y-%m-%d at %H:%M")) })) }
+                    (format_content(some_or_empty(&topic.payload), &HashSet::new()))
+                    cite { "Set by " (format_nick(topic.nick.as_deref().unwrap())) " on " (message_link(topic, html!{ (topic.timestamp.format("%Y-%m-%d at %H:%M")) })) }
                 }
             }
             table.messages data-stream=(uri!(route::channel_stream(sc))) {
                 tbody {
-                @for msg in messages { (message(msg, sc, &info.nicks, LinkType::Relative)) }
+                    @for msg in messages { (message(msg, sc, &info.nicks, LinkType::Relative)) }
                 }
             }
             @if messages.is_empty() {
@@ -301,7 +301,7 @@ fn format_hl_nick(content: &str, nicks: &Nicks) -> Markup {
     highlight(content)
 }
 
-fn format_content(content: &Option<String>, nicks: &Nicks) -> Markup {
+fn format_content(content: &str, nicks: &Nicks) -> Markup {
     use linkify::{LinkFinder, LinkKind};
     lazy_static! {
         static ref LINK_FINDER: LinkFinder = {
@@ -310,32 +310,28 @@ fn format_content(content: &Option<String>, nicks: &Nicks) -> Markup {
             lf
         };
     }
-    let markup: Vec<Markup> = if let Some(body) = content {
-        LINK_FINDER.spans(body).map(|span| {
-            let s = span.as_str();
-            match span.kind() {
-                Some(LinkKind::Url) => {
-                    let short = match s.split_once("://") {
-                        Some((_, url)) => url,
-                        None => s,
-                    };
-                    let truncated = short.len() > LINK_TRUNCATE_LENGTH;
-                    let short = if truncated { short.chars().take(LINK_TRUNCATE_LENGTH).collect::<String>() } else { short.to_string() };
-                    html! { a.link.trunc[truncated] ref="noreferrer nofollow external" href=(clean(s)) title=(clean(s)) { (highlight(&short)) } }
-                }
-                _ => format_hl_nick(s, nicks),
+    let markup: Vec<Markup> = LINK_FINDER.spans(content).map(|span| {
+        let s = span.as_str();
+        match span.kind() {
+            Some(LinkKind::Url) => {
+                let short = match s.split_once("://") {
+                    Some((_, url)) => url,
+                    None => s,
+                };
+                let truncated = short.len() > LINK_TRUNCATE_LENGTH;
+                let short = if truncated { short.chars().take(LINK_TRUNCATE_LENGTH).collect::<String>() } else { short.to_string() };
+                html! { a.link.trunc[truncated] ref="noreferrer nofollow external" href=(clean(s)) title=(clean(s)) { (highlight(&short)) } }
             }
-        }).collect()
-    } else {
-        vec![]
-    };
+            _ => format_hl_nick(s, nicks),
+        }
+    }).collect();
     html! { @for m in markup { (m) } }
 }
 
 fn format_message(m: &Message, nicks: &Nicks) -> Markup {
     html! {
         @match m.opcode.as_deref() {
-            None | Some("me") => (format_content(&m.line, nicks)),
+            None | Some("me") => (format_content(some_or_empty(&m.line), nicks)),
             Some("joined") => (format_nick(m.nick.as_ref().unwrap())) " has joined",
             Some("left") => (format_nick(m.nick.as_ref().unwrap())) " has left" (format_some!(&m.payload, " ({})")),
             Some("quit") => (format_nick(m.nick.as_ref().unwrap())) " has quit" (format_some!(&m.payload, " ({})")),
@@ -355,7 +351,7 @@ fn message(m: &Message, sc: &ServerChannel, nicks: &Nicks, link_type: LinkType) 
         tr#(m.id_str()).msg data-timestamp=(m.epoch()) data-oper=(some_or_empty(&m.opcode)) {
                 td.ts { a.tslink title=(m.timestamp.to_rfc3339()) href={(rel) "#" (m.id_str())} { (m.timestamp.format("%H:%M")) } }
                 @if m.is_talk() {
-                    td.nick."me-tell"[m.is_me_tell()] { (format_nick(m.nick.as_ref().unwrap())) }
+                    td.nick."me-tell"[m.is_me_tell()] { (format_nick(m.nick.as_deref().unwrap())) }
                 } @else {
                     td.nick.operation { "*" }
                 }
