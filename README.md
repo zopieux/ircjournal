@@ -98,8 +98,8 @@ JavaScript disabled.
 #### Backfilling existing logs
 
 The first time you run `ircj-watch` on an empty database, or whenever you add a
-new log file, or if new lines were added in a channel while `ircj-watch` was *
-not* running, the program will attempt to find the last recorded line in the
+new log file, or if new lines were added in a channel while `ircj-watch` was 
+*not* running, the program will attempt to find the last recorded line in the
 file and backfill (save) the missing new lines in the database. It will then
 continue watching for new lines, as usual.
 
