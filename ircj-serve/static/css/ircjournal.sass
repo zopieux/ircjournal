@@ -2,6 +2,7 @@
 
 $text: lighten(black, 10)
 $muted: lighten($text, 50)
+$bg: darken(white, 5)
 $pad: 2ch
 $weight: 400
 $bold: 500
@@ -20,6 +21,7 @@ body
   display: flex
   flex-direction: row
   gap: $pad
+  background-color: $bg
 
 h1
   margin: 0
@@ -101,7 +103,14 @@ main
   flex-wrap: wrap
 
   &:first-of-type
-    margin-top: 0
+    position: sticky
+    background: $bg
+    // [ begin hack
+    margin-top: -$pad
+    padding-top: $pad
+    padding-bottom: $pad/2
+    top: 0
+    // end hack ]
 
   & > span
     white-space: nowrap
@@ -114,19 +123,11 @@ main
     content: ' << '
     color: $muted
 
-  //.day-prev::before
-  //  content: ' < '
-  //  color: $muted
-
   .day-today
     font-weight: $bold
 
     & > span:first-child
       margin: 0 1ch
-
-  //.day-next::after
-  //  content: ' > '
-  //  color: $muted
 
   .day-last::after
     content: ' >> '
@@ -194,7 +195,8 @@ tbody.search-date
     max-width: 9ch
     white-space: nowrap
     text-overflow: ellipsis
-    //text-overflow: '⋅'
+    // This is not well-supported in 2021Q4.
+    // text-overflow: '⋅'
     overflow-x: hidden
     text-align: right
 
@@ -284,3 +286,26 @@ blockquote.last-topic
 
   aside
     position: unset
+    margin: 0 auto
+
+@media (max-width: 350px)
+  .messages
+    tr
+      display: grid
+      grid-template-areas: 'nick ts' 'line line'
+      grid-template-columns: 1fr auto
+
+      td
+        display: block
+
+      td.ts
+        grid-area: ts
+        padding: 0
+
+      td.nick
+        grid-area: nick
+        min-width: unset
+        text-align: left
+
+      td.line
+        grid-area: line
