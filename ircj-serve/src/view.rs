@@ -111,14 +111,11 @@ pub(crate) fn channel(
 
     let date_sel = |from, to, jump, jump_tip| {
         let _link_date = |day: &Day| channel_link(sc, day, html! { (day.ymd()) });
-        // let short_link_date = |fmt: &'static str, day: &Day| channel_link(sc, day, html! { (format!(fmt, day.day())) });
         html! {
             p.days {
                 @if info.first_day != *day {
-                    // span."day-first" { (link_date(&info.first_day)) }
-                    // @if info.first_day != day.pred() { span."day-prev" { (short_link_date(&day.pred())) } }
                     @let pred = day.pred();
-                    span."day-prev" { (channel_link(sc, &pred, html! { "< " (pred.day()) })) }
+                    span."day-prev" { (channel_link(sc, &pred, html! { "< " (pred.day_str()) })) }
                 } @else { span."day-nope" { "logs start here" } }
                 span."day-today".current {
                     span { (day.ymd()) }
@@ -126,9 +123,7 @@ pub(crate) fn channel(
                 }
                 @if info.last_day != *day {
                      @let next = day.succ();
-                    span."day-next" { (channel_link(sc, &next, html! { (next.day()) " >" })) }
-                    // @if info.last_day != day.succ() { span."day-next" { (short_link_date(&day.succ())) } }
-                    // span."day-last" { (link_date(&info.last_day)) }
+                    span."day-next" { (channel_link(sc, &next, html! { (next.day_str()) " >" })) }
                 } @else { span."day-nope" { "logs ends here" } }
             }
         }

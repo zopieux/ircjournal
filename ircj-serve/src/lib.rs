@@ -50,6 +50,10 @@ impl Day {
         self.0.day()
     }
 
+    pub(crate) fn day_str(&self) -> String {
+        self.0.format("%d").to_string()
+    }
+
     pub(crate) fn month(&self) -> String {
         self.0.format("%B").to_string()
     }
