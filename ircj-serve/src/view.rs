@@ -1,4 +1,5 @@
 use chrono::{Datelike, NaiveDate};
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use maud::{html, Markup, PreEscaped, DOCTYPE};
 use regex::Regex;
@@ -72,6 +73,7 @@ where
 }
 
 pub(crate) fn home(channels: &[ServerChannel]) -> Markup {
+    let channel_tree = &channels.iter().group_by(|sc| &sc.server);
     base(
         "Channel list",
         html! {
@@ -79,10 +81,17 @@ pub(crate) fn home(channels: &[ServerChannel]) -> Markup {
                 p { em { "No channel. Ingest some logs!" } }
             }
             ul.chanlist {
-                @for sc in channels {
+                @for (server, channels) in channel_tree {
                     li {
-                        a.server-channel href=(uri!(route::channel_redirect(sc))) {
-                            (sc.server) "/" (sc.channel)
+                        span { (server) }
+                        ul {
+                            @for channel in channels {
+                                li {
+                                    a.server-channel href=(uri!(route::channel_redirect(channel))) {
+                                        (channel.channel)
+                                    }
+                                }
+                            }
                         }
                     }
                 }

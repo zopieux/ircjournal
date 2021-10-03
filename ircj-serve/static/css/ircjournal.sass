@@ -59,10 +59,18 @@ aside
 ul.chanlist
   margin: 0
   padding: 0
-  list-style: none
+  list-style-type: none
 
-  & > li
+  li
     margin: 0
+    padding: 0
+
+  & > li:not(:last-child)
+    margin-bottom: 1ch
+
+  & > li > ul
+    list-style-type: none
+    margin: 0 0 0 2ch
     padding: 0
 
 form.search
