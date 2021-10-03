@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate rocket;
 
 use figment::providers::Format;
@@ -17,7 +16,7 @@ impl Default for Config {
     }
 }
 
-#[launch]
+#[rocket::launch]
 async fn get_rocket() -> rocket::Rocket<rocket::Build> {
     env_logger::init();
 
