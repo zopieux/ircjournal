@@ -1,4 +1,4 @@
-use chrono::{Datelike, Duration};
+use chrono::Datelike;
 use itertools::Itertools;
 use maud::Markup;
 use rocket::{
@@ -14,6 +14,7 @@ use tokio::{
     sync::broadcast::{error::RecvError, Sender},
 };
 
+pub use crate::route_static::StaticFiles;
 use ircjournal::{model::ServerChannel, Database, MessageEvent};
 
 use crate::{view, Day};
@@ -111,101 +112,6 @@ async fn channel_search(
         result_page.page_count,
         result_page.total,
     ))
-}
-
-#[derive(rust_embed::RustEmbed)]
-#[folder = "$OUT_DIR/static/"]
-#[prefix = ""]
-#[include = "**/*.js"]
-#[include = "**/*.css"]
-#[include = "**/*.png"]
-struct StaticAsset;
-
-#[derive(Clone)]
-pub struct StaticFiles;
-
-struct StaticFile {
-    extension: String,
-    file: rust_embed::EmbeddedFile,
-}
-
-impl<'r> rocket::response::Responder<'r, 'static> for StaticFile {
-    fn respond_to(self, _: &'r Request<'_>) -> rocket::response::Result<'static> {
-        let content_type = rocket::http::ContentType::from_extension(&self.extension)
-            .ok_or_else(|| Status::new(400))?;
-        use chrono::{DateTime, NaiveDateTime, Utc};
-        use hex::ToHex;
-        use rocket::http::{hyper::header, Header};
-        let dt =
-            self.file.metadata.last_modified().map(|lm| {
-                DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(lm as i64, 0), Utc)
-            });
-        let mut builder = rocket::response::Response::build();
-        builder
-            .header(content_type)
-            .header(Header::new(
-                header::CACHE_CONTROL.as_str(),
-                "private, max-age=86400, stale-while-revalidate=604800",
-            ))
-            .header(Header::new(
-                header::ETAG.as_str(),
-                self.file.metadata.sha256_hash().encode_hex::<String>(),
-            ))
-            .sized_body(self.file.data.len(), std::io::Cursor::new(self.file.data));
-        if let Some(dt) = dt {
-            builder
-                .header(Header::new(
-                    header::LAST_MODIFIED.as_str(),
-                    dt.to_rfc2822().replace("+0000", "GMT"),
-                ))
-                .header(Header::new(
-                    header::EXPIRES.as_str(),
-                    (dt + Duration::days(7))
-                        .to_rfc2822()
-                        .replace("+0000", "GMT"),
-                ))
-                .ok()
-        } else {
-            builder.ok()
-        }
-    }
-}
-
-#[async_trait]
-impl rocket::route::Handler for StaticFiles {
-    async fn handle<'r>(
-        &self,
-        req: &'r Request<'_>,
-        _: rocket::Data<'r>,
-    ) -> rocket::route::Outcome<'r> {
-        use rocket::http::uri::{fmt::Path, Segments};
-        rocket::route::Outcome::from(
-            req,
-            match (|req: &'r Request<'_>| -> Option<_> {
-                let path = req
-                    .segments::<Segments<'_, Path>>(0..)
-                    .ok()
-                    .and_then(|segments| segments.to_path_buf(false).ok())?;
-                let extension = path
-                    .extension()
-                    .and_then(std::ffi::OsStr::to_str)?
-                    .to_owned();
-                StaticAsset::get(path.to_str()?).map(|file| StaticFile { extension, file })
-            })(req)
-            {
-                Some(resp) => Ok(resp),
-                None => Err(Status::NotFound),
-            },
-        )
-    }
-}
-
-impl From<StaticFiles> for Vec<rocket::Route> {
-    fn from(sf: StaticFiles) -> Self {
-        let mut route = rocket::Route::ranked(30, rocket::http::Method::Get, "/<path..>", sf);
-        route.name = Some("StaticFiles".into());
-        vec![route]
-    }
 }
 
 pub fn routes() -> Vec<Route> {

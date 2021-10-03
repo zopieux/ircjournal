@@ -8,6 +8,7 @@ use std::{collections::HashSet, str::FromStr};
 mod db;
 pub mod route;
 mod route_adapt;
+mod route_static;
 mod view;
 pub mod watch;
 
