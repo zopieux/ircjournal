@@ -29,7 +29,7 @@ while ! curl --silent -o /dev/null "$url"; do sleep 1; done
 
 # Screenshot and add shadow.
 pushd "$cwd/.github"
-"$chrome" --headless --disable-gpu --screenshot --hide-scrollbars --window-size=900,584 "$url"
+"$chrome" --headless --disable-gpu --screenshot --hide-scrollbars --window-size=821,584 "$url"
 mv {,new}screenshot.png
 convert newscreenshot.png \( +clone -background black -shadow 80x4+0+0 \) +swap -background white -layers merge +repage screenshot.png
 optipng -quiet -clobber screenshot.png
