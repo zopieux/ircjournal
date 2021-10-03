@@ -124,7 +124,7 @@ pub(crate) fn channel(
                 @if info.last_day != *day {
                      @let next = day.succ();
                     span."day-next" { (channel_link(sc, &next, html! { (next.day_str()) " >" })) }
-                } @else { span."day-nope" { "logs ends here" } }
+                } @else { span."day-nope" { "logs end here" } }
             }
         }
     };
