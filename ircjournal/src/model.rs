@@ -35,6 +35,14 @@ pub struct NewMessage {
     pub timestamp: Datetime,
 }
 
+fn encode_hash(s: &str) -> String {
+    s.replace('#', "~h~")
+}
+
+fn decode_hash(s: &str) -> String {
+    s.replace("~h~", "#")
+}
+
 impl ServerChannel {
     pub fn new(server: &str, channel: &str) -> Self {
         Self {
@@ -61,7 +69,11 @@ impl std::str::FromStr for ServerChannel {
 
 impl UriDisplay<Path> for ServerChannel {
     fn fmt(&self, f: &mut Formatter<'_, Path>) -> std::fmt::Result {
-        f.write_value(format!("{}:{}", &self.server, &self.channel))
+        f.write_value(format!(
+            "{}:{}",
+            encode_hash(&self.server),
+            encode_hash(&self.channel)
+        ))
     }
 }
 
@@ -75,7 +87,7 @@ impl<'r> FromParam<'r> for ServerChannel {
                 format!("invalid server/channel: {}", encoded),
             )
         })?;
-        Ok(Self::new(server, channel))
+        Ok(Self::new(&decode_hash(server), &decode_hash(channel)))
     }
 }
 
