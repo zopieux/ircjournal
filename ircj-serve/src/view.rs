@@ -296,7 +296,6 @@ fn search_form(sc: &ServerChannel, query: &str) -> Markup {
     html! {
         form.search action=(uri!(route::channel_search(sc, "", None as Option<u64>))) method="get" {
             input type="search" name="query" value=(query) placeholder="Search this channel";
-            button type="submit" { "Search" }
         }
     }
 }
