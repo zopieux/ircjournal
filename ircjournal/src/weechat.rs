@@ -12,18 +12,18 @@ lazy_static! {
     static ref LINE: Regex =
         Regex::new(r"^([0-9]{4}\-[0-9]{2}\-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})\t(.*)$").unwrap();
     static ref LOG_NICK_CHANGED: Regex =
-        Regex::new(r#"^--\t(\S+) is now known as (\S+)$"#).unwrap();
+        Regex::new(r#"^--\t[~&@%\+]*(\S+) is now known as [~&@%\+]*(\S+)$"#).unwrap();
     static ref LOG_TOPIC_CHANGED: Regex =
-        Regex::new(r#"^--\t(\S+) has changed topic for \S+ from "(.*?)" to "(.*?)"$"#).unwrap();
-    static ref LOG_JOINED: Regex = Regex::new(r#"^-->\t(\S+) \(.*?\) has joined (#.+)$"#).unwrap();
+        Regex::new(r#"^--\t[~&@%\+]*(\S+) has changed topic for \S+ from "(.*?)" to "(.*?)"$"#).unwrap();
+    static ref LOG_JOINED: Regex = Regex::new(r#"^-->\t[~&@%\+]*(\S+) \(.*?\) has joined (#.+)$"#).unwrap();
     static ref LOG_LEFT: Regex =
-        Regex::new(r#"^<--\t(\S+) \(.*?\) has left (#.+?)(?: \("(.*?)"\))?$"#).unwrap();
+        Regex::new(r#"^<--\t[~&@%\+]*(\S+) \(.*?\) has left (#.+?)(?: \("(.*?)"\))?$"#).unwrap();
     static ref LOG_QUIT: Regex =
-        Regex::new(r#"^<--\t(\S+) \(.*?\) has quit(?: \((.*?)\))?$"#).unwrap();
+        Regex::new(r#"^<--\t[~&@%\+]*(\S+) \(.*?\) has quit(?: \((.*?)\))?$"#).unwrap();
     static ref LOG_KICKED: Regex =
-        Regex::new(r#"^<--\t(\S+) has kicked (\S+)(?: \((.*?)\))?$"#).unwrap();
-    static ref LOG_ME: Regex = Regex::new(r#"^ \*\t(\S+)(?: (.*))?$"#).unwrap();
-    static ref LOG_MESSAGE: Regex = Regex::new(r#"^([^\s<-]\S*)\t(.*)$"#).unwrap();
+        Regex::new(r#"^<--\t[~&@%\+]*(\S+) has kicked [~&@%\+]*(\S+)(?: \((.*?)\))?$"#).unwrap();
+    static ref LOG_ME: Regex = Regex::new(r#"^ \*\t[~&@%\+]*(\S+)(?: (.*))?$"#).unwrap();
+    static ref LOG_MESSAGE: Regex = Regex::new(r#"^[~&@%\+]*([^\s<-]\S*)\t(.*)$"#).unwrap();
 }
 
 pub struct Weechat;
@@ -178,7 +178,7 @@ fn test_parse_name() {
         ))
     );
     assert_eq!(
-        Weechat::parse_line("2019-12-14 23:12:14\tzopieux\ttest"),
+        Weechat::parse_line("2019-12-14 23:12:14\t@zopieux\ttest"),
         ParseResult::Ok((
             ts("2019-12-14 23:12:14"),
             IrcLine::Message {
