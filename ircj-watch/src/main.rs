@@ -129,6 +129,11 @@ async fn main() -> Result<(), figment::Error> {
     ins.unwrap();
     prog.unwrap();
 
+    if successes.is_empty() {
+        eprintln!("Could not observe any of the requested files. Exiting.");
+        std::process::exit(1);
+    }
+
     // Now watch for changes and save new messages as they come.
     let mut notifier = inotify::Inotify::init().unwrap();
 
