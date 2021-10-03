@@ -29,7 +29,9 @@ pub fn broadcast_message_task(
                 Ok(notification) = listener.recv() => {
                     if let Ok(message) = serde_json::from_str::<Message>(notification.payload()) {
                         let sc = ServerChannel::from_str(message.channel.as_ref().unwrap()).unwrap();
-                        let _ = broadcast.send((sc.clone(), crate::view::formatted_message(&message)));
+                        let nicks = crate::db::channel_info(&db, &sc, &message.timestamp.into()).await
+                            .map(|info| info.nicks).unwrap_or_default();
+                        let _ = broadcast.send((sc.clone(), crate::view::formatted_message(&message, &nicks)));
                         debug!("New message for {:?}, id {}", &sc, message.id);
                     }
                 },

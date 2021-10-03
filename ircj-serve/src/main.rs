@@ -10,9 +10,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self {
-            db: "".to_owned(),
-        }
+        Self { db: "".to_owned() }
     }
 }
 

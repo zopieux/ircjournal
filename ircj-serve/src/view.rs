@@ -225,11 +225,11 @@ pub(crate) fn search(
     )
 }
 
-pub(crate) fn formatted_message(m: &Message) -> String {
+pub(crate) fn formatted_message(m: &Message, nicks: &Nicks) -> String {
     message(
         m,
         &ServerChannel::from_str(m.channel.as_ref().unwrap()).unwrap(),
-        &HashSet::new(),
+        nicks,
         LinkType::Relative,
     )
     .into_string()

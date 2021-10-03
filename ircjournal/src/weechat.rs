@@ -14,8 +14,10 @@ lazy_static! {
     static ref LOG_NICK_CHANGED: Regex =
         Regex::new(r#"^--\t[~&@%\+]*(\S+) is now known as [~&@%\+]*(\S+)$"#).unwrap();
     static ref LOG_TOPIC_CHANGED: Regex =
-        Regex::new(r#"^--\t[~&@%\+]*(\S+) has changed topic for \S+ from "(.*?)" to "(.*?)"$"#).unwrap();
-    static ref LOG_JOINED: Regex = Regex::new(r#"^-->\t[~&@%\+]*(\S+) \(.*?\) has joined (#.+)$"#).unwrap();
+        Regex::new(r#"^--\t[~&@%\+]*(\S+) has changed topic for \S+ from "(.*?)" to "(.*?)"$"#)
+            .unwrap();
+    static ref LOG_JOINED: Regex =
+        Regex::new(r#"^-->\t[~&@%\+]*(\S+) \(.*?\) has joined (#.+)$"#).unwrap();
     static ref LOG_LEFT: Regex =
         Regex::new(r#"^<--\t[~&@%\+]*(\S+) \(.*?\) has left (#.+?)(?: \("(.*?)"\))?$"#).unwrap();
     static ref LOG_QUIT: Regex =
