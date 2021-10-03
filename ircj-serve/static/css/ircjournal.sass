@@ -2,6 +2,8 @@
 
 $text: lighten(black, 10)
 $muted: lighten($text, 50)
+$link: hsl(194, 70%, 25%)
+$link-visited: adjust-hue($link, 60)
 $bg: darken(white, 5)
 $pad: 2ch
 $weight: 400
@@ -23,6 +25,15 @@ body
   gap: $pad
   background-color: $bg
 
+a
+  color: $link
+
+a:hover
+  color: lighten($link, 12)
+
+a:visited, a:active
+  color: $link-visited
+
 h1
   margin: 0
   padding: 0
@@ -38,7 +49,7 @@ h2.brand
 aside
   padding: 0
   margin: 0
-  width: $aside-size
+  //width: $aside-size
   overflow-x: hidden
   word-break: break-all
   position: sticky
@@ -255,21 +266,23 @@ nav
     font-weight: $weight
 
   .today
-    text-decoration: underline
-    text-decoration-style: solid
+    border: 1px solid $link
 
   .active
-    text-decoration: underline
-    text-decoration-style: double
+    background-color: $link
+    a
+      color: $bg
 
 .current
   text-align: center
   flex: 1
 
 blockquote.last-topic
-  margin: 0
-  padding: 0 0 $pad
-  flex: 1
+  margin: 0 0 $pad/2
+  padding: $pad/2 0
+  border-style: dotted
+  border-color: $light
+  border-width: 1px 0
 
   & > cite
     display: block

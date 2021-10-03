@@ -403,13 +403,11 @@ fn render_calendar(day: &Day, info: &ChannelInfo, active_days: &HashSet<u32>) ->
                     @for week in &month.weeks {
                         tr {
                             @for opt in week {
-                                td {
-                                    @if let Some((d, linked)) = opt.as_ref() {
-                                        @let fmted = format!("{:\u{00A0}>2}", d.day());
-                                        @if *linked { a href=(uri!(route::channel(sc, d.clone()))) .active[d == day].today[d == today] { (fmted) } }
-                                        @else { span.active[d == day].today[d == today] { (fmted) } }
-                                    } @else { span {} }
-                                }
+                                @if let Some((d, linked)) = opt.as_ref() {
+                                    @let fmted = format!("{:\u{00A0}>2}", d.day());
+                                    @if *linked { td .active[d == day].today[d == today] { a href=(uri!(route::channel(sc, d.clone()))) { (fmted) } } }
+                                    @else { td .active[d == day].today[d == today] { span { (fmted) } } }
+                                } @else { td { span {} } }
                             }
                         }
                     }
