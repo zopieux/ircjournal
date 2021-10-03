@@ -90,7 +90,7 @@ async fn main() -> Result<(), figment::Error> {
     drop(tx);
 
     let prog_handle = tokio::task::spawn_blocking(move || {
-        prog.join();
+        let _ = prog.join();
     });
 
     let results: Vec<_> = futures::stream::iter(prepared)
