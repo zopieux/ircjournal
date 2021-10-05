@@ -2,6 +2,7 @@ use rocket::fairing::AdHoc;
 use std::{str::FromStr, time::Duration};
 use tokio::sync::broadcast;
 
+use crate::ChannelRemap;
 use ircjournal::{
     model::{Message, ServerChannel},
     Database, MessageEvent,
@@ -12,6 +13,7 @@ const AWAKE_LISTEN_INTERVAL: Duration = Duration::from_secs(60);
 
 pub fn broadcast_message_task(
     db: Database,
+    remap: ChannelRemap,
     broadcast: broadcast::Sender<MessageEvent>,
     mut shutdown: rocket::Shutdown,
 ) {
@@ -29,7 +31,8 @@ pub fn broadcast_message_task(
                 Ok(notification) = listener.recv() => {
                     if let Ok(message) = serde_json::from_str::<Message>(notification.payload()) {
                         let sc = ServerChannel::from_str(message.channel.as_ref().unwrap()).unwrap();
-                        let nicks = crate::db::channel_info(&db, &sc, &message.timestamp.into()).await
+                        let sc = remap.canonical(&sc);
+                        let nicks = crate::db::channel_info(&db, &sc, &remap, &message.timestamp.into()).await
                             .map(|info| info.nicks).unwrap_or_default();
                         let _ = broadcast.send((sc.clone(), crate::view::formatted_message(&message, &nicks)));
                         debug!("New message for {:?}, id {}", &sc, message.id);
@@ -56,6 +59,7 @@ fn watch_fairing() -> AdHoc {
                     .state::<Database>()
                     .unwrap() // attached above
                     .clone(),
+                rocket.state::<ChannelRemap>().unwrap().clone(),
                 rocket
                     .state::<broadcast::Sender<MessageEvent>>()
                     .unwrap() // attached above

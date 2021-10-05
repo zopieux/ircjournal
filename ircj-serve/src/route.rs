@@ -17,16 +17,21 @@ use tokio::{
 pub use crate::route_static::StaticFiles;
 use ircjournal::{model::ServerChannel, Database, MessageEvent};
 
-use crate::{view, Day};
+use crate::{view, ChannelRemap, Day};
 
 #[get("/")]
-async fn home(db: &State<Database>) -> Option<Markup> {
-    let channels = crate::db::channels(db).await;
+async fn home(db: &State<Database>, remap: &State<ChannelRemap>) -> Option<Markup> {
+    let channels = crate::db::channels(db, remap).await;
     Some(view::home(&channels))
 }
 
 #[get("/<sc>")]
-async fn channel_redirect(db: &State<Database>, sc: ServerChannel) -> Redirect {
+async fn channel_redirect(
+    db: &State<Database>,
+    remap: &State<ChannelRemap>,
+    sc: ServerChannel,
+) -> Redirect {
+    let sc = remap.canonical(&sc);
     Redirect::temporary(
         if let Some(ts) = ircjournal::db::last_message_ts(db, &sc).await {
             uri!(channel(&sc, ts.into()))
@@ -38,11 +43,13 @@ async fn channel_redirect(db: &State<Database>, sc: ServerChannel) -> Redirect {
 
 #[get("/<sc>/stream")]
 async fn channel_stream(
-    sc: ServerChannel,
     db: &State<Database>,
+    remap: &State<ChannelRemap>,
     queue: &State<Sender<MessageEvent>>,
+    sc: ServerChannel,
     mut end: rocket::Shutdown,
 ) -> Option<EventStream![]> {
+    let sc = remap.canonical(&sc);
     if !crate::db::channel_exists(db, &sc).await {
         return None;
     }
@@ -63,12 +70,18 @@ async fn channel_stream(
 }
 
 #[get("/<sc>/<day>")]
-async fn channel(db: &State<Database>, sc: ServerChannel, day: Day) -> Option<Markup> {
+async fn channel(
+    db: &State<Database>,
+    remap: &State<ChannelRemap>,
+    sc: ServerChannel,
+    day: Day,
+) -> Option<Markup> {
+    let sc = remap.canonical(&sc);
     let (messages, info, active_days) = {
         tokio::join!(
-            crate::db::messages_channel_day(db, &sc, &day),
-            crate::db::channel_info(db, &sc, &day),
-            crate::db::channel_month_index(db, &sc, day.0.year(), day.0.month()),
+            crate::db::messages_channel_day(db, &sc, remap, &day),
+            crate::db::channel_info(db, &sc, remap, &day),
+            crate::db::channel_month_index(db, &sc, remap, day.0.year(), day.0.month()),
         )
     };
     let truncated = messages.len() == crate::db::HARD_MESSAGE_LIMIT;
@@ -84,17 +97,19 @@ async fn channel(db: &State<Database>, sc: ServerChannel, day: Day) -> Option<Ma
 #[get("/<sc>/search?<query>&<page>")]
 async fn channel_search(
     db: &State<Database>,
+    remap: &State<ChannelRemap>,
     sc: ServerChannel,
     query: &str,
     page: Option<u64>,
 ) -> Option<Markup> {
+    let sc = remap.canonical(&sc);
     let page = page.unwrap_or(1);
     let (result_page, info) = {
         let query = query.to_string();
         let today = Day::today();
         tokio::join!(
-            crate::db::channel_search(db, &sc, &query, page as i64),
-            crate::db::channel_info(db, &sc, &today),
+            crate::db::channel_search(db, &sc, remap, &query, page as i64),
+            crate::db::channel_info(db, &sc, remap, &today),
         )
     };
     let messages: Vec<_> = result_page

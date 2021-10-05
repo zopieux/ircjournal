@@ -1,7 +1,8 @@
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use std::{collections::HashSet, str::FromStr};
 
-use crate::{ChannelInfo, Day};
+use crate::{ChannelInfo, ChannelRemap, Day};
 use ircjournal::{
     model::{Message, ServerChannel},
     Database,
@@ -19,7 +20,7 @@ pub(crate) struct Paginated<U> {
     pub(crate) page_count: i64,
 }
 
-pub(crate) async fn channels(db: &Database) -> Vec<ServerChannel> {
+pub(crate) async fn channels(db: &Database, remap: &ChannelRemap) -> Vec<ServerChannel> {
     // language=sql
     sqlx::query!(r#"SELECT "channel" FROM all_channels()"#)
         .fetch_all(db)
@@ -27,6 +28,8 @@ pub(crate) async fn channels(db: &Database) -> Vec<ServerChannel> {
         .unwrap_or_default()
         .iter()
         .filter_map(|s| ServerChannel::from_str(s.channel.as_ref().unwrap()).ok())
+        .map(|sc| remap.canonical(&sc))
+        .unique()
         .collect()
 }
 
@@ -45,18 +48,19 @@ pub(crate) async fn channel_exists(db: &Database, sc: &ServerChannel) -> bool {
 pub(crate) async fn channel_info(
     db: &Database,
     sc: &ServerChannel,
+    remap: &ChannelRemap,
     before: &Day,
 ) -> Option<ChannelInfo> {
-    let channel = sc.to_string();
+    let channels = remap.aliases_str(sc);
     // language=sql
     sqlx::query!(r#"
-        WITH "ts" AS (SELECT min("timestamp") "first!", max("timestamp") "last!" FROM "message" WHERE "channel" = $1)
+        WITH "ts" AS (SELECT min("timestamp") "first!", max("timestamp") "last!" FROM "message" WHERE "channel" = ANY($1))
         SELECT "first!", "last!", array(SELECT "nick" FROM all_nicks($1, $2)) "nicks!",
                (SELECT row("message".*) FROM "message"
-                WHERE "channel" = $1 AND "opcode" = 'topic' AND coalesce("payload", '') != '' AND "timestamp" < $3
+                WHERE "channel" = ANY($1) AND "opcode" = 'topic' AND coalesce("payload", '') != '' AND "timestamp" < $3
                 ORDER BY "timestamp" DESC LIMIT 1) "topic?:Message"
         FROM "ts" GROUP BY 1, 2, 3 LIMIT 1
-    "#, &channel, HARD_NICK_LIMIT as i64, before.succ().midnight())
+    "#, &channels, HARD_NICK_LIMIT as i64, before.succ().midnight())
         .fetch_optional(db)
         .await
         .unwrap()
@@ -72,18 +76,20 @@ pub(crate) async fn channel_info(
 pub(crate) async fn messages_channel_day(
     db: &Database,
     sc: &ServerChannel,
+    remap: &ChannelRemap,
     day: &Day,
 ) -> Vec<Message> {
+    let channels = remap.aliases_str(sc);
     // language=sql
     sqlx::query_as!(
         Message,
         r#"
         SELECT * FROM "message"
-        WHERE "channel" = $1 AND "timestamp" >= $2 AND "timestamp" < $3
+        WHERE "channel" = ANY($1) AND "timestamp" >= $2 AND "timestamp" < $3
         ORDER BY "timestamp"
         LIMIT $4
     "#,
-        sc.to_string(),
+        &channels,
         day.midnight(),
         day.succ().midnight(),
         HARD_MESSAGE_LIMIT as i64
@@ -96,9 +102,11 @@ pub(crate) async fn messages_channel_day(
 pub(crate) async fn channel_month_index(
     db: &Database,
     sc: &ServerChannel,
+    remap: &ChannelRemap,
     year: i32,
     month: u32,
 ) -> HashSet<u32> {
+    let channels = remap.aliases_str(sc);
     let from: Day = chrono::NaiveDate::from_ymd(year, month, 1).into();
     let to: Day = chrono::NaiveDate::from_ymd(year + month as i32 / 12, 1 + month % 12, 1).into();
     // language=sql
@@ -106,10 +114,10 @@ pub(crate) async fn channel_month_index(
         r#"
         SELECT DISTINCT EXTRACT(DAY FROM "timestamp") "day!"
         FROM "message"
-        WHERE "channel" = $1 AND ("opcode" IS NULL OR "opcode" = 'me')
+        WHERE "channel" = ANY($1) AND ("opcode" IS NULL OR "opcode" = 'me')
         AND "timestamp" >= $2 AND "timestamp" < $3
         "#,
-        sc.to_string(),
+        &channels,
         from.midnight(),
         to.midnight()
     )
@@ -124,10 +132,12 @@ pub(crate) async fn channel_month_index(
 pub(crate) async fn channel_search(
     db: &Database,
     sc: &ServerChannel,
+    remap: &ChannelRemap,
     query: &str,
     page: i64,
 ) -> Paginated<Message> {
     // Try to find nick:<something> to build a non-empty nick filter.
+    let channels = remap.aliases_str(sc);
     lazy_static! {
         static ref NICK: regex::Regex =
             regex::Regex::new(r#"\b(nick:[A-Za-z_0-9|.`\*-]+)"#).unwrap();
@@ -162,14 +172,14 @@ pub(crate) async fn channel_search(
             SELECT row("message".*) "message!:Message",
                    ts_headline('english', "line", plainto_tsquery('english', $2), U&'StartSel=\E000, StopSel=\E001') "headline!"
             FROM "message"
-            WHERE "channel" || '' = $1
+            WHERE "channel" || '' = ANY($1)
               AND coalesce("opcode", '') = ''
               AND CASE WHEN $2 = '' THEN TRUE ELSE to_tsvector('english', "nick" || ' ' || "line") @@ plainto_tsquery('english', $2) END
               AND CASE WHEN $5 = '' THEN TRUE ELSE "nick" LIKE $5 END
         )
         SELECT *, COUNT(*) OVER () "total!"
         FROM "query" t LIMIT $3 OFFSET $4
-"#, sc.to_string(), &query, per_page, offset, nick_filter)
+"#, &channels, &query, per_page, offset, nick_filter)
         .fetch_all(db)
         .await
         .unwrap();

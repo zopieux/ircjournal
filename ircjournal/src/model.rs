@@ -6,11 +6,13 @@ use std::io::ErrorKind;
 
 pub type Datetime = chrono::DateTime<chrono::Utc>;
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Hash, Clone, Debug)]
 pub struct ServerChannel {
     pub server: String,
     pub channel: String,
 }
+
+impl Eq for ServerChannel {}
 
 #[derive(PartialEq, Debug, serde::Deserialize, sqlx::Type)]
 pub struct Message {

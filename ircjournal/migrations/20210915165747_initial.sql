@@ -19,7 +19,7 @@ CREATE INDEX "channel_ts" ON "message" ("channel", "timestamp");
 CREATE INDEX "channel_line_fts" ON "message" USING gin (channel, to_tsvector('english', nick || ' ' || line));
 
 -- https://wiki.postgresql.org/wiki/Loose_indexscan
-CREATE OR REPLACE FUNCTION all_nicks(chan text, n numeric)
+CREATE OR REPLACE FUNCTION all_nicks(chan text[], n numeric)
     RETURNS TABLE
             (
                 nick text
@@ -29,9 +29,9 @@ $$
 WITH RECURSIVE t AS (
     SELECT min(nick) AS nick, 1 AS cnt
     FROM message
-    WHERE channel = chan AND 1 <= n
+    WHERE channel = ANY(chan) AND 1 <= n
     UNION ALL
-    SELECT (SELECT min(nick) FROM message WHERE nick > t.nick AND channel = chan), cnt + 1 AS cnt
+    SELECT (SELECT min(nick) FROM message WHERE nick > t.nick AND channel = ANY(chan)), cnt + 1 AS cnt
     FROM t
     WHERE t.nick IS NOT NULL AND cnt < n
 )

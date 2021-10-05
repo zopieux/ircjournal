@@ -3,7 +3,10 @@ extern crate rocket;
 
 use chrono::{Datelike, NaiveDate};
 use ircjournal::model::{Datetime, Message, ServerChannel};
-use std::{collections::HashSet, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 mod db;
 pub mod route;
@@ -13,6 +16,42 @@ mod view;
 pub mod watch;
 
 pub(crate) type Nicks = HashSet<String>;
+
+#[derive(Clone)]
+pub struct ChannelRemap {
+    forward: HashMap<ServerChannel, ServerChannel>,
+    reverse: HashMap<ServerChannel, Vec<ServerChannel>>,
+}
+
+impl ChannelRemap {
+    pub fn new(aliases: &HashMap<String, Vec<String>>) -> std::io::Result<Self> {
+        let mut reverse = HashMap::with_capacity(aliases.len());
+        let mut forward = HashMap::with_capacity(aliases.len());
+        for (new, olds) in aliases {
+            let new = ServerChannel::from_str(new)?;
+            let mut o = Vec::with_capacity(olds.len());
+            for old in olds {
+                let old = ServerChannel::from_str(old)?;
+                forward.insert(old.clone(), new.clone());
+                o.push(old.clone());
+            }
+            reverse.insert(new.clone(), o);
+        }
+        Ok(Self { forward, reverse })
+    }
+
+    pub(crate) fn canonical(&self, sc: &ServerChannel) -> ServerChannel {
+        self.forward.get(sc).unwrap_or(sc).clone()
+    }
+
+    pub(crate) fn aliases_str(&self, sc: &ServerChannel) -> Vec<String> {
+        let mut out = vec![sc.to_string()];
+        if let Some(x) = self.reverse.get(sc) {
+            x.iter().map(|sc| sc.to_string()).for_each(|s| out.push(s));
+        }
+        out
+    }
+}
 
 #[derive(Debug)]
 pub struct ChannelInfo {
