@@ -142,7 +142,7 @@ async fn main() -> Result<(), figment::Error> {
         .map(|(path, (sc, buf_reader, type_mark))| {
             (
                 notifier
-                    .add_watch(path, inotify::WatchMask::CLOSE_WRITE)
+                    .add_watch(path, inotify::WatchMask::MODIFY)
                     .unwrap(),
                 Tailer::new(type_mark, sc, buf_reader),
             )
