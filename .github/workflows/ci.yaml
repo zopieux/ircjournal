@@ -13,19 +13,15 @@ jobs:
       - name: Setup TypeScript compiler
         run: yarn global add typescript@next
 
-      - name: Setup dart-sass
+      - name: Install build dependencies
+        run: sudo apt-get install -y -q sassc
         env:
-          DART_VERSION: 1.42.1
-        run: |
-          wget --quiet "https://github.com/sass/dart-sass/releases/download/${DART_VERSION}/dart-sass-${DART_VERSION}-linux-x64.tar.gz" -O dart.tar.gz
-          tar xzf dart.tar.gz dart-sass/sass
-          echo "$(realpath ./dart-sass)" >> $GITHUB_PATH
+          DEBIAN_FRONTEND: noninteractive
 
       - name: Setup Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
-          components: clippy
           override: true
 
       - name: cargo build
