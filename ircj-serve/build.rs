@@ -23,11 +23,10 @@ fn main() {
         fs::copy(stat.join(f), out.join(f)).expect("copy");
     }
 
-    ok(Command::new("sass")
+    ok(Command::new("sassc")
         .current_dir(&out)
         .arg("--style=compressed")
-        .arg("--no-source-map")
-        .arg("--quiet")
+        .arg("--omit-map-comment")
         .arg(stat.join("css/ircjournal.sass"))
         .arg(out.join("css/ircjournal.css")));
 
