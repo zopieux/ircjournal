@@ -178,7 +178,8 @@ pub(crate) fn channel(
                     cite { "Set by " (format_nick(topic.nick.as_deref().unwrap())) " on " (message_link(topic, html!{ (topic.timestamp.format("%Y-%m-%d at %H:%M")) })) }
                 }
             }
-            table.messages data-stream=(uri!(route::channel_stream(sc))) {
+            @let maybe_stream = day.is_today_or_future().then(|| uri!(route::channel_stream(sc)));
+            table.messages data-stream=[maybe_stream] {
                 tbody {
                     @for msg in messages { (message(msg, sc, &info.nicks, LinkType::Relative)) }
                 }

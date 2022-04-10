@@ -208,6 +208,7 @@ function app() {
     let liveStream: EventSource = null
     function startLiveUpdates() {
         const url = (messageTable.dataset as { stream: string }).stream
+        if (!url) return
         liveStream = new EventSource(url, {withCredentials: true})
         liveStream.onerror = () => {
             // Some browsers have their own reconnection loop. Without close(), they would

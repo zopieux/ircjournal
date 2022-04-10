@@ -31,6 +31,10 @@ impl Day {
         Self(chrono::Local::today().naive_local())
     }
 
+    pub(crate) fn is_today_or_future(&self) -> bool {
+        Self::today().0 <= self.0
+    }
+
     pub(crate) fn succ(&self) -> Self {
         Self(self.0.succ())
     }

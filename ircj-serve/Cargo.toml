@@ -17,7 +17,7 @@ tokio = { version = "1.6", features = ["macros", "rt-multi-thread", "sync", "fs"
 rocket = "0.5.0-rc.1"
 # Programmatic HTML templates.
 # TODO(debt): blocked on new rocket release (0.5) and follow-up maud release.
-maud = { git = "https://github.com/Zopieux/maud", branch = "support-rocket-0.5.0-rc.1", features = ["rocket"] }
+maud = { git = "https://github.com/Zopieux/maud", branch = "support-rocket-0.5.0-rc.1", features = ["rocket", "chrono"] }
 # Nick hash.
 crc32fast = "1.2"
 # Extract URLs from plain text.
