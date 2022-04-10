@@ -1,5 +1,7 @@
 on: [push]
+
 name: CI
+
 jobs:
   build_and_test:
     name: "build & test"
@@ -40,12 +42,6 @@ jobs:
           command: test
         env:
           SQLX_OFFLINE: true
-
-      - name: Run clippy
-        uses: actions-rs/clippy-check@v1
-        if: always()
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
   check-js:
     name: "check frontend code"
