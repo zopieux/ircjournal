@@ -104,7 +104,7 @@ pub(crate) async fn channel_month_index(
     // language=sql
     sqlx::query!(
         r#"
-        SELECT DISTINCT EXTRACT(DAY FROM "timestamp") "day!"
+        SELECT DISTINCT EXTRACT(DAY FROM "timestamp")::smallint "day!"
         FROM "message"
         WHERE "channel" = $1 AND ("opcode" IS NULL OR "opcode" = 'me')
         AND "timestamp" >= $2 AND "timestamp" < $3
@@ -166,6 +166,7 @@ pub(crate) async fn channel_search(
               AND coalesce("opcode", '') = ''
               AND CASE WHEN $2 = '' THEN TRUE ELSE to_tsvector('english', "nick" || ' ' || "line") @@ plainto_tsquery('english', $2) END
               AND CASE WHEN $5 = '' THEN TRUE ELSE "nick" LIKE $5 END
+            ORDER BY "timestamp" DESC
         )
         SELECT *, COUNT(*) OVER () "total!"
         FROM "query" t LIMIT $3 OFFSET $4

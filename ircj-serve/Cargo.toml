@@ -27,7 +27,7 @@ chrono = { version = "0.4", features = ["serde"] }
 # Iter helpers.
 itertools = "0.10"
 # Database pool and migrations.
-sqlx = { version = "0.5", features = ["runtime-tokio-native-tls", "postgres", "migrate", "macros", "chrono", "offline"] }
+sqlx = { version = "0.5.11", features = ["runtime-tokio-native-tls", "postgres", "migrate", "macros", "chrono", "offline"] }
 # Static.
 lazy_static = "1.4"
 # Regexp, for parsing a bunch of things.

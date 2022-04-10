@@ -1,8 +1,8 @@
-use std::time::Duration;
 use crate::{
     model::{Datetime, NewMessage, ServerChannel},
     Database,
 };
+use std::time::Duration;
 
 pub async fn create_db(uri: &str) -> Result<Database, sqlx::Error> {
     // TODO: configurable options.

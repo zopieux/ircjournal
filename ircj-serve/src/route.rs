@@ -15,7 +15,10 @@ use tokio::{
 };
 
 pub use crate::route_static::StaticFiles;
-use ircjournal::{model::ServerChannel, Database, MessageEvent};
+use ircjournal::{
+    model::{Message, ServerChannel},
+    Database, MessageEvent,
+};
 
 use crate::{view, Day};
 
@@ -102,7 +105,15 @@ async fn channel_search(
         .into_iter()
         .group_by(|msg| msg.timestamp.date().naive_utc())
         .into_iter()
-        .map(|(day, group)| (day.into(), group.collect()))
+        .map(|(day, group)| {
+            (day.into(), {
+                // By now all messages are still in descending chronological order.
+                // For a given day to make sense, reverse order, within each day.
+                let mut messages: Vec<Message> = group.collect();
+                messages.reverse();
+                messages
+            })
+        })
         .collect();
     Some(view::search(
         &info?,
