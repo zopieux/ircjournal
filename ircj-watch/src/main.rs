@@ -50,7 +50,7 @@ async fn main() -> Result<(), figment::Error> {
 
     let pool = ircjournal::db::create_db(&config.db)
         .await
-        .expect(&*format!(
+        .expect(&format!(
             "Connecting and migrating the database at {}",
             &config.db
         ));

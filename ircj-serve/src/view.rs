@@ -290,7 +290,7 @@ fn highlight(line: &str) -> Markup {
 }
 
 fn clean(line: &str) -> String {
-    line.replace('\u{e000}', "").replace('\u{e001}', "")
+    line.replace(['\u{e000}', '\u{e001}'], "")
 }
 
 fn search_form(sc: &ServerChannel, query: &str) -> Markup {

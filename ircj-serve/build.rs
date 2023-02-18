@@ -1,5 +1,3 @@
-#![feature(bool_to_option)]
-
 use std::{env, fs, path::Path, process::Command};
 
 fn ok(cmd: &mut Command) {
