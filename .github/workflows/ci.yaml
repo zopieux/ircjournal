@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     if: "contains(github.event.head_commit.message, '[rust]')"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Setup TypeScript compiler
         run: yarn global add typescript@next
@@ -43,7 +43,7 @@ jobs:
     name: "check frontend code"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Install dependencies
         run: cd ircj-serve && yarn
