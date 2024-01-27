@@ -8,7 +8,7 @@ pub async fn create_db(uri: &str) -> Result<Database, sqlx::Error> {
     // TODO: configurable options.
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(4)
-        .connect_timeout(Duration::from_secs(4))
+        .acquire_timeout(Duration::from_secs(4))
         .connect(uri)
         .await?;
     sqlx::migrate!("./migrations").run(&pool).await?;

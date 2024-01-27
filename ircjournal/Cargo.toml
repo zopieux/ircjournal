@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 # Database pool and migrations.
-sqlx = { version = "0.5", features = ["runtime-tokio-native-tls", "postgres", "chrono", "migrate", "macros", "offline"] }
+sqlx = { version = "0.6", features = ["runtime-tokio-native-tls", "postgres", "chrono", "migrate", "macros", "offline"] }
 # Date & time utils.
 chrono = { version = "0.4", features = ["serde"] }
 # Deserialization, used by figment.
