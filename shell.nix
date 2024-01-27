@@ -8,6 +8,9 @@ let
 
 in
 pkgs.mkShell {
+  nativeBuildInputs = with pkgs; [
+    pkg-config
+  ];
   buildInputs = with pkgs;
     [
       rust
