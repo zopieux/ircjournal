@@ -27,7 +27,10 @@
       devShells.default = pkgs.mkShell {
         shellHook = ''
           echo 'To create a test DB, use: export DATABASE_URL=$(pg_tmp -w 0 -d /tmp/ircjournal-pg)'
+          echo 'To migrate to be able to use sqlx compile-time validation, use: sqlx migrate run --source ircjournal/migrations'
         '';
+        SQLX_OFFLINE = 1;
+        DATABASE_URL = "postgresql:///test?host=%2Ftmp%2Fircjournal-pg";
         RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
         inputsFrom = with packages; [ ircjournal ];
         buildInputs = with pkgs; [
