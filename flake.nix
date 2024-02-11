@@ -14,7 +14,6 @@
           version = "local";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
-          cargoLock.outputHashes."maud-0.23.0" = "sha256-1U8KWxFwvxxxtrgW19NMwkbf0tRG4PEAYvdOzmaFaiM=";
           SQLX_OFFLINE = 1;
           nativeBuildInputs = with pkgs; [
             pkg-config
