@@ -107,9 +107,9 @@ pub(crate) fn home(channels: &[ServerChannel]) -> Markup {
         html! {
             p {
                 "This is "
-                a hrefe="https://github.com/zopieux/ircjournal" rel="nofollow" { "ircjournal" }
+                a href="https://github.com/zopieux/ircjournal" rel="nofollow" { "ircjournal" }
                 " v" (VERSION.unwrap_or("?")) ", brought to you by "
-                a href="https://github.com/zopieux" { "zopieux@" } "."
+                a href="https://github.com/zopieux" { "zopieux" } "."
             }
         },
         html! {},
