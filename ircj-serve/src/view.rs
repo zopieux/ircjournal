@@ -428,13 +428,14 @@ struct OneMonth {
 
 fn calendar(day: &Day, active_days: &HashSet<u32>) -> OneMonth {
     // Start of week.
-    let sow = NaiveDate::from_ymd(day.0.year(), day.0.month(), 1);
+    let sow = NaiveDate::from_ymd_opt(day.0.year(), day.0.month(), 1).unwrap_or_default();
 
-    let num_days = NaiveDate::from_ymd(
+    let num_days = NaiveDate::from_ymd_opt(
         sow.year() + sow.month() as i32 / 12,
         1 + sow.month() % 12,
         1,
     )
+    .unwrap_or_default()
     .signed_duration_since(sow)
     .num_days();
 
@@ -449,9 +450,9 @@ fn calendar(day: &Day, active_days: &HashSet<u32>) -> OneMonth {
         }
     };
 
-    let prev_month_day = closest_day(&sow.pred());
+    let prev_month_day = closest_day(&sow.pred_opt().unwrap_or_default());
     let succ_month_day =
-        closest_day(&NaiveDate::from_ymd(day.0.year(), day.0.month(), num_days as u32).succ());
+        closest_day(&NaiveDate::from_ymd_opt(day.0.year(), day.0.month(), num_days as u32).unwrap_or_default().succ_opt().unwrap_or_default());
 
     let gen =
         |d: u32| Some::<(Day, _)>((sow.with_day(d).unwrap().into(), active_days.contains(&d)));
@@ -481,7 +482,7 @@ fn calendar(day: &Day, active_days: &HashSet<u32>) -> OneMonth {
 
 #[test]
 fn test_calendar() {
-    let day = &Day(chrono::NaiveDate::from_ymd(2021, 6, 22));
+    let day = &Day(chrono::NaiveDate::from_ymd_opt(2021, 6, 22).unwrap_or_default());
     let present: HashSet<u32> = vec![1, 3, 9, 24].into_iter().collect();
     calendar(day, &present);
 }

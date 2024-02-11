@@ -50,10 +50,7 @@ async fn main() -> Result<(), figment::Error> {
 
     let pool = ircjournal::db::create_db(&config.db)
         .await
-        .expect(&format!(
-            "Connecting and migrating the database at {}",
-            &config.db
-        ));
+        .unwrap_or_else(|_| panic!("Connecting and migrating the database at {}", &config.db));
 
     // First, backfill.
     let prog = indicatif::MultiProgress::new();

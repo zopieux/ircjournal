@@ -99,8 +99,8 @@ pub(crate) async fn channel_month_index(
     year: i32,
     month: u32,
 ) -> HashSet<u32> {
-    let from: Day = chrono::NaiveDate::from_ymd(year, month, 1).into();
-    let to: Day = chrono::NaiveDate::from_ymd(year + month as i32 / 12, 1 + month % 12, 1).into();
+    let from: Day = chrono::NaiveDate::from_ymd_opt(year, month, 1).unwrap_or_default().into();
+    let to: Day = chrono::NaiveDate::from_ymd_opt(year + month as i32 / 12, 1 + month % 12, 1).unwrap_or_default().into();
     // language=sql
     sqlx::query!(
         r#"

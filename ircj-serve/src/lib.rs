@@ -28,7 +28,7 @@ pub struct Day(pub(crate) chrono::NaiveDate);
 
 impl Day {
     pub(crate) fn today() -> Self {
-        Self(chrono::Local::today().naive_local())
+        Self(chrono::Local::now().date_naive())
     }
 
     pub(crate) fn is_today_or_future(&self) -> bool {
@@ -36,15 +36,18 @@ impl Day {
     }
 
     pub(crate) fn succ(&self) -> Self {
-        Self(self.0.succ())
+        Self(self.0.succ_opt().unwrap_or_default())
     }
 
     pub(crate) fn pred(&self) -> Self {
-        Self(self.0.pred())
+        Self(self.0.pred_opt().unwrap_or_default())
     }
 
     pub(crate) fn midnight(&self) -> Datetime {
-        Datetime::from_utc(self.0.and_hms(0, 0, 0), chrono::Utc)
+        Datetime::from_naive_utc_and_offset(
+            self.0.and_hms_opt(0, 0, 0).unwrap_or_default(),
+            chrono::Utc,
+        )
     }
 
     pub(crate) fn ymd(&self) -> String {
@@ -74,13 +77,17 @@ impl Day {
 
 impl From<Datetime> for Day {
     fn from(ts: Datetime) -> Self {
-        Self(ts.date().naive_utc())
+        Self(ts.date_naive())
     }
 }
 
 impl From<chrono::NaiveDate> for Day {
     fn from(ts: NaiveDate) -> Self {
-        Datetime::from_utc(ts.and_hms(0, 0, 0), chrono::Utc).into()
+        Datetime::from_naive_utc_and_offset(
+            ts.and_hms_opt(0, 0, 0).unwrap_or_default(),
+            chrono::Utc,
+        )
+        .into()
     }
 }
 

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{TimeZone, Utc};
 use core::{
     convert::From,
     option::{
@@ -44,10 +44,11 @@ impl<'r> rocket::response::Responder<'r, 'static> for StaticFile {
     fn respond_to(self, _: &'r Request<'_>) -> rocket::response::Result<'static> {
         let content_type = rocket::http::ContentType::from_extension(&self.extension)
             .ok_or_else(|| Status::new(400))?;
-        let dt =
-            self.file.metadata.last_modified().map(|lm| {
-                DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(lm as i64, 0), Utc)
-            });
+        let dt = self
+            .file
+            .metadata
+            .last_modified()
+            .and_then(|lm| Utc.timestamp_opt(lm as i64, 0).single());
         let mut builder = rocket::response::Response::build();
         builder
             .header(content_type)
@@ -96,8 +97,8 @@ impl rocket::route::Handler for StaticFiles {
             .get_one(rocket::http::hyper::header::IF_NONE_MATCH.as_str())
             .unwrap_or_default();
         match get_static_file(req) {
-            None => Outcome::failure(Status::NotFound),
-            Some(file) if file.etag() == etag => Outcome::failure(Status::NotModified),
+            None => Outcome::error(Status::NotFound),
+            Some(file) if file.etag() == etag => Outcome::error(Status::NotModified),
             Some(file) => Outcome::from(req, file),
         }
     }

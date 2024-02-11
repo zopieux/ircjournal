@@ -103,7 +103,7 @@ async fn channel_search(
     let messages: Vec<_> = result_page
         .records
         .into_iter()
-        .group_by(|msg| msg.timestamp.date().naive_utc())
+        .group_by(|msg| msg.timestamp.date_naive())
         .into_iter()
         .map(|(day, group)| {
             (day.into(), {

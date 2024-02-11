@@ -13,8 +13,7 @@ figment = { version = "0.10", features = ["env", "yaml"] }
 # Async runtime.
 tokio = { version = "1.6", features = ["macros", "rt-multi-thread", "sync", "fs", "io-util"] }
 # HTTP server.
-# TODO(debt): update to stable release (0.5).
-rocket = "0.5.0-rc.1"
+rocket = "0.5.0"
 # Programmatic HTML templates.
 # TODO(debt): blocked on new rocket release (0.5) and follow-up maud release.
 maud = { git = "https://github.com/Zopieux/maud", branch = "support-rocket-0.5.0-rc.1", features = ["rocket", "chrono"] }

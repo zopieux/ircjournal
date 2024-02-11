@@ -1,6 +1,5 @@
 use futures::StreamExt;
 use indicatif::ProgressBar;
-use ircjournal::model::ServerChannel;
 use std::{marker::PhantomData, path::Path};
 use tokio::{
     fs::File,
@@ -9,8 +8,8 @@ use tokio::{
 use tokio_stream::wrappers::LinesStream;
 
 use ircjournal::{
-    db::batch_insert_messages, line_to_new_message, seek_past_line, Database, Logger, NewMessage,
-    ParseResult,
+    db::batch_insert_messages, line_to_new_message, model::ServerChannel, seek_past_line, Database,
+    Logger, NewMessage, ParseResult,
 };
 
 fn invalid_input(msg: &str) -> std::io::Error {

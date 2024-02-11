@@ -59,7 +59,7 @@ impl Logger for Weechat {
             Ok(t) => t,
             Err(_) => return ParseResult::Invalid,
         };
-        let timestamp = Datetime::from_utc(naive, chrono::Utc);
+        let timestamp = Datetime::from_naive_utc_and_offset(naive, chrono::Utc);
         let s = cap.get(2).unwrap().as_str();
         let parsed = (|| {
             if LOG_JOINED.is_match(s) {
