@@ -62,6 +62,14 @@ impl Day {
     pub(crate) fn month(&self) -> String {
         self.0.format("%B").to_string()
     }
+
+    pub(crate) fn month_short(&self) -> String {
+        self.0.format("%b").to_string()
+    }
+
+    pub(crate) fn year(&self) -> String {
+        self.0.format("%Y").to_string()
+    }
 }
 
 impl From<Datetime> for Day {

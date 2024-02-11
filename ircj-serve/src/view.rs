@@ -390,7 +390,7 @@ fn render_calendar(day: &Day, info: &ChannelInfo, active_days: &HashSet<u32>) ->
             nav {
                 span { a href=(uri!(route::channel(sc, info.first_day.clone()))) title="Jump to first available logs" { "\u{291a}" } }
                 span { a href=(uri!(route::channel(sc, month.prev.clone()))) title="Previous month" { "«" } }
-                span.current { (day.month()) }
+                span.current { (day.month_short()) " " (day.year()) }
                 span { a href=(uri!(route::channel(sc, month.succ.clone()))) title="Next month" { "»" } }
                 span { a href=(uri!(route::channel(sc, info.last_day.clone()))) title="Jump to last available logs" { "\u{2919}" } }
             }
