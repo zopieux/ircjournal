@@ -1,5 +1,6 @@
 node_modules/
 .sass-cache/
+.direnv/
 target/
 testlogs/
 /ircj-serve/package-lock.json
