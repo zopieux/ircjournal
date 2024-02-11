@@ -8,42 +8,21 @@ jobs:
     runs-on: ubuntu-latest
     if: "contains(github.event.head_commit.message, '[rust]')"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Setup TypeScript compiler
-        run: yarn global add typescript@next
-
-      - name: Install build dependencies
-        run: sudo apt-get install -y -q sassc
-        env:
-          DEBIAN_FRONTEND: noninteractive
-
-      - name: Setup Install rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
+      - uses: cachix/install-nix-action@v24
 
       - name: cargo build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all-targets
-        env:
-          SQLX_OFFLINE: true
+        run: nix build
 
       - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-        env:
-          SQLX_OFFLINE: true
+        run: nix develop --command cargo test 
 
   check-js:
     name: "check frontend code"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: cd ircj-serve && yarn
