@@ -22,7 +22,7 @@ impl<'r> FromParam<'r> for Day {
     }
 }
 
-impl<'r> FromUriParam<Path, Day> for Day {
+impl FromUriParam<Path, Day> for Day {
     type Target = Day;
 
     fn from_uri_param(param: Day) -> Self::Target {

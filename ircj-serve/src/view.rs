@@ -451,8 +451,12 @@ fn calendar(day: &Day, active_days: &HashSet<u32>) -> OneMonth {
     };
 
     let prev_month_day = closest_day(&sow.pred_opt().unwrap_or_default());
-    let succ_month_day =
-        closest_day(&NaiveDate::from_ymd_opt(day.0.year(), day.0.month(), num_days as u32).unwrap_or_default().succ_opt().unwrap_or_default());
+    let succ_month_day = closest_day(
+        &NaiveDate::from_ymd_opt(day.0.year(), day.0.month(), num_days as u32)
+            .unwrap_or_default()
+            .succ_opt()
+            .unwrap_or_default(),
+    );
 
     let gen =
         |d: u32| Some::<(Day, _)>((sow.with_day(d).unwrap().into(), active_days.contains(&d)));
