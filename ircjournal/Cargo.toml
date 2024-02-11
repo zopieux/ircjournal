@@ -1,6 +1,6 @@
 [package]
 name = "ircjournal"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Alexandre Macabies <web+oss@zopieux.com>"]
 edition = "2018"
 

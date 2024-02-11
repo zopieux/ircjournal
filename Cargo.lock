@@ -968,7 +968,7 @@ dependencies = [
 
 [[package]]
 name = "ircj-serve"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -992,7 +992,7 @@ dependencies = [
 
 [[package]]
 name = "ircj-watch"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "env_logger",
  "figment",
@@ -1010,7 +1010,7 @@ dependencies = [
 
 [[package]]
 name = "ircjournal"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "lazy_static",
