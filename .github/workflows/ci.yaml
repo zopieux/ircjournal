@@ -10,14 +10,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: cachix/install-nix-action@02a151ada4993995686f9ed4f1be7cfbb229e56f
         with:
-          diagnostic-endpoint: ''
+          nix_path: nixpkgs=channel:nixos-unstable
 
-      - uses: DeterminateSystems/magic-nix-cache-action@main
-        with:
-          diagnostic-endpoint: ''
-          
       - name: cargo build
         run: nix build
 
