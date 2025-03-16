@@ -40,6 +40,8 @@
           ephemeralpg
           clippy
           sqlx-cli
+          yarn
+          nodejs
         ];
       };
     });
