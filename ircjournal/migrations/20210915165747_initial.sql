@@ -1,5 +1,3 @@
-CREATE EXTENSION IF NOT EXISTS btree_gin;
-
 CREATE TABLE "message"
 (
     "id"        serial PRIMARY KEY NOT NULL,

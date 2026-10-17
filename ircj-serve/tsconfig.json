@@ -1,7 +1,14 @@
 {
-  "include": ["static/js/*.ts"],
+  "include": [
+    "static/js/*.ts"
+  ],
   "compilerOptions": {
     "target": "es6",
-    "sourceMap": true
+    "sourceMap": true,
+    "rootDir": "static/js",
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "noImplicitReturns": false
   }
 }
