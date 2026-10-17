@@ -1,7 +1,7 @@
 extern crate lazy_static;
 
 use std::path::Path;
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncSeekExt, BufReader, SeekFrom};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncSeekExt, BufReader, SeekFrom};
 
 pub use crate::model::{Datetime, NewMessage, ServerChannel};
 pub type Database = sqlx::postgres::PgPool;
@@ -123,33 +123,6 @@ pub fn line_to_new_message(
     }
 }
 
-async fn find_last_line<L: Logger, F>(
-    line: &mut String,
-    reader: &mut BufReader<F>,
-    end: u64,
-) -> Option<String>
-where
-    F: AsyncRead + AsyncSeekExt + Unpin,
-{
-    let mut offset = 64u64;
-    loop {
-        line.clear();
-        reader.seek(SeekFrom::Start(end - offset)).await.ok()?;
-        match reader.read_to_string(line).await {
-            Ok(0) => return None,
-            Ok(_) => {
-                let lasts: Vec<_> = line[0..line.len() - 1].rsplitn(2, '\n').collect();
-                match lasts.len() {
-                    1 => offset *= 2,
-                    2 => return Some(lasts[0].to_string()),
-                    _ => unreachable!(),
-                };
-            }
-            Err(_) => return None,
-        }
-    }
-}
-
 pub async fn seek_past_line<L: Logger, F>(
     reader: &mut BufReader<F>,
     needle: &Datetime,
@@ -164,20 +137,30 @@ where
         let mid = start + (end - start) / 2;
         reader.seek(SeekFrom::Start(mid)).await.ok()?;
         let mut attempts = 0;
+        // First dated line at or after `mid`. `None` means there is none until EOF (only noise,
+        // or `mid` is within the last line): treat it as +infinity and keep searching leftwards.
         let dated_line = loop {
             line.clear();
             let parsed = match reader.read_line(&mut line).await {
-                Ok(0) => L::parse_line(&find_last_line::<L, F>(&mut line, reader, end).await?),
-                Ok(_) => L::parse_line(&line[0..line.len() - 1]),
+                Ok(0) => break None,
+                Ok(_) => L::parse_line(line.strip_suffix('\n').unwrap_or(&line)),
                 Err(_) => ParseResult::Invalid,
             };
             match (parsed, attempts) {
-                (ParseResult::Invalid, 2) => break None,
+                (ParseResult::Invalid, 2) => return None,
                 (ParseResult::Invalid, _) => attempts += 1,
                 (ParseResult::Noise, _) => attempts = 0,
                 (ParseResult::Ok(dated_line), _) => break Some(dated_line),
             }
-        }?;
+        };
+        let dated_line = match dated_line {
+            Some(dated_line) => dated_line,
+            None if mid == 0 => return None,
+            None => {
+                end = mid - 1;
+                continue;
+            }
+        };
         match (&dated_line.0, mid) {
             (ts, _) if ts < needle => start = mid + 1,
             (ts, 0) if ts > needle => return None,
@@ -191,7 +174,7 @@ where
                     line.clear();
                     let parsed = match reader.read_line(&mut line).await {
                         Ok(0) => break,
-                        Ok(_) => L::parse_line(&line[0..line.len() - 1]),
+                        Ok(_) => L::parse_line(line.strip_suffix('\n').unwrap_or(&line)),
                         Err(_) => break,
                     };
                     match parsed {
@@ -312,6 +295,65 @@ mod test {
                 nick: "haileda".to_string(),
                 reason: "Quit: Lost terminal".to_string()
             }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_seek_past_line_trailing_noise() {
+        use tokio::io::AsyncWriteExt;
+        let dir = tempdir().unwrap();
+        let fname = dir.path().join("server.#chan.weechatlogs");
+        {
+            let mut f = tokio::fs::File::create(&fname).await.unwrap();
+            f.write_all(
+                "2026-10-17 15:45:41\tval\tupdate : 54kB
+2026-10-17 15:55:47\tval\tspider-mario: JXL pour les modèles 3D, when
+2026-10-17 17:04:03\t-->\tzopieux (~zopieux@user/zopieux) has joined ##dieses
+2026-10-17 17:04:03\t--\tTopic for ##dieses is \"Bienvenue sur ##dieses\"
+2026-10-17 17:04:03\t--\tTopic set by zopieux on Sat, 05 Sep 2026 01:36:47
+2026-10-17 17:04:03\t--\tChannel ##dieses: 17 nicks (1 op, 0 voiced, 16 regular)
+2026-10-17 17:04:03\t--\tChannel created on Wed, 19 May 2021 14:31:10\n"
+                    .as_bytes(),
+            )
+            .await
+            .unwrap();
+        };
+
+        macro_rules! seek_past_is {
+            ($fname: ident, $ts: literal, $res: expr) => {
+                let f = tokio::fs::File::open(&$fname).await.unwrap();
+                let mut buff = tokio::io::BufReader::new(f);
+                let res = tokio::time::timeout(
+                    std::time::Duration::from_secs(5),
+                    seek_past_line::<Weechat, _>(&mut buff, &ts($ts)),
+                )
+                .await
+                .expect("seek_past_line hung");
+                assert_eq!(res, $res);
+            };
+        }
+        seek_past_is!(fname, "2026-10-17 23:59:59", None);
+        seek_past_is!(fname, "2026-10-17 17:00:00", None);
+        seek_past_is!(
+            fname,
+            "2026-10-17 17:04:03",
+            Some((
+                ts("2026-10-17 17:04:03"),
+                IrcLine::Joined {
+                    nick: "zopieux".to_string()
+                }
+            ))
+        );
+        seek_past_is!(
+            fname,
+            "2026-10-17 15:55:47",
+            Some((
+                ts("2026-10-17 15:55:47"),
+                IrcLine::Message {
+                    nick: "val".to_string(),
+                    line: "spider-mario: JXL pour les modèles 3D, when".to_string()
+                }
+            ))
         );
     }
 }
